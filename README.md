@@ -1,99 +1,73 @@
 # Hikcamera
 
-`海康相机 MV-CS016-10UC` 的 C++ 封装，使用 `Ament Cmake` 管理
+海康工业相机 MVS SDK 的 C++23 封装，支持 standalone CMake 和 ROS2 ament 构建。
 
-## 项目构建
+当前测试型号：MV-CS016-10UC / MV-CS050-10UC
 
-项目依赖 `ROS2` 环境，需要使用团队提供的 `Docker` 镜像开发，此处我们默认读者已经了解过 `ROS2` 及 `RMCS` 相关知识和操作
+## Standalone 构建（推荐）
 
-```sh
-# 进入容器中
-cd /path/to/rmcs_ws/
-git clone https://github.com/Alliance-Algorithm/ros2-hikcamera.git src/hikcamera
+依赖：
 
-# 使用 ROS2 工具构建
-colcon build --packages-select hikcamera --symlink-install --merge-install
+- CMake ≥ 3.16
+- C++23 编译器（GCC 14+ / Clang 18+）
+- OpenCV ≥ 4.5
+- 海康 MVS SDK（从[海康官网](https://www.hikrobotics.com/machinevision)下载安装）
 
-# 或者使用 RMCS 脚本
-build-rmcs --packages-select hikcamera
+```bash
+# 配置（指定 MVS SDK 安装路径，可选）
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DMVS_SDK_ROOT=/opt/MVS
+
+# 构建
+cmake --build build --parallel
 ```
 
-## 项目引入
+## 通过 CMake FetchContent 引入
 
-在 `CMake` 中加入下面的配置即可，注意要先 `source` 上面步骤构建好的 `install/setup.zsh`，才能正常构建：
+在项目的 `CMakeLists.txt` 中：
 
 ```cmake
-set(CMAKE_CXX_STANDARD 23)
-set(CMAKE_CXX_STANDARD_REQUIRED ON)
-
-find_package(OpenCV REQUIRED)
-find_package(hikcamera REQUIRED)
-
-include_directories(${hikcamera_INCLUDE_DIRS})
-
-target_link_libraries(
-    your_app
-    ${OpenCV_LIBS}
-    ${hikcamera_LIBRARIES}
+include(FetchContent)
+FetchContent_Declare(
+    hikcamera
+    URL https://github.com/Yukikaze2233/ros2-hikcamera/releases/download/v2.1.0/hikcamera-src-2.1.0.zip
+    URL_HASH SHA256=<see release notes>
+    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
 )
+FetchContent_MakeAvailable(hikcamera)
+
+target_link_libraries(your_app PRIVATE hikcamera)
 ```
 
-可以参考：[`rmcs_auto_aim_v2/test/CMakeLists.txt`](https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2/blob/main/test/CMakeLists.txt)
-
-## 基本使用
-
-接口使用 `C++23` 所引入的 `expected`，能够携带更加自由的错误上下文，并强制约束调用者检查，是出于工程化的考量
+使用：
 
 ```cpp
-// 1. 配置
-auto config = hikcamera::Config {
-    .timeout_ms  = 2'000,
-    .exposure_us = 1'500,
-    // ...
-};
-auto camera = hikcamera::Camera {};
-camera.configure(config);
+#include <hikcamera/capturer.hpp>
 
-// 2. 连接相机
-//  - result: std::expected<void, std::string>
+auto camera = hikcamera::Camera{};
+camera.configure({.exposure_us = 1500, .framerate = 80});
 if (auto result = camera.connect()) {
-    std::println("Camera connect successfully");
-} else {
-    std::println("Failed to connect: {}", result.error());
+    auto mat = camera.read_image();  // std::expected<cv::Mat, std::string>
 }
-
-// 3. 读取图片
-//  - mat: std::expected<cv::Mat, std::string>
-//  或者使用 ‘read_image_with_timestamp’
-//  调用该接口会阻塞等待，需要特别注意
-if (auto mat = camera.read_image()) {
-    std::print("Read a image as cv::Mat");
-} else {
-    std::print("Failed to read: {}", mat.error());
-}
-
-// 4. 断开相机
-//  忽略返回值，有时候断开操作也会报错，但我们不需要处理
-if(camera.connected())
-    std::ignore = camera.disconnect();
 ```
 
-## 相关示例
+## ROS2 构建（兼容模式）
 
-- 循环捕获：[`rmcs_auto_aim_v2/test/hikcamera.cpp`](https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2/blob/main/test/hikcamera.cpp)
+保留 `package.xml`，仍可通过 ament 构建：
 
-- 视频推流：[`rmcs_auto_aim_v2/test/streaming.cpp`](https://github.com/Alliance-Algorithm/rmcs_auto_aim_v2/blob/main/test/streaming.cpp)
+```bash
+cd /path/to/rmcs_ws/
+git clone https://github.com/Yukikaze2233/ros2-hikcamera.git src/hikcamera
+colcon build --packages-select hikcamera --symlink-install --merge-install
+```
 
 ## 故障排除
 
-- **未找到相机但是使用 `lsusb` 能找到**
-    
-    一般是用户没有权限导致的，我们需要在使用摄像头的电脑上配置 udev 规则，注意不是在 `Docker` 容器中：
-    ```sh
-    # 创建 Rules 文件
-    echo "SUBSYSTEM==\"usb\", ATTR{idVendor}==\"2bdf\", ATTR{idProduct}==\"0001\", MODE=\"0666\"" | sudo tee /etc/udev/rules.d/99-hikcamera.rules
-    # 重新加载 Rules
-    sudo udevadm control --reload-rules
-    sudo udevadm trigger
-    ```
-    执行完上述指令后，理论上就能正确查找相机了
+- **未找到相机但 `lsusb` 能找到**：配置 udev 规则：
+  ```bash
+  echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bdf", ATTR{idProduct}=="0001", MODE="0666"' \
+    | sudo tee /etc/udev/rules.d/99-hikcamera.rules
+  sudo udevadm control --reload-rules && sudo udevadm trigger
+  ```
+
+- **MVS SDK 未找到**：设置环境变量 `MVS_SDK_ROOT` 或 CMake 参数 `-DMVS_SDK_ROOT=/path/to/MVS`。

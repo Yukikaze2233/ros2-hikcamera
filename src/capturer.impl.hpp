@@ -60,7 +60,8 @@ struct Camera::Impl final {
         if (code != sdk::OK)
             return util::make_unexpected_with_error("Failed to convert image", code);
 
-        return generate_mat(info);
+        // clone() 确保返回的 cv::Mat 拥有独立内存，不依赖内部循环缓冲区
+        return generate_mat(info).clone();
     }
 
     auto read_image_with_timestamp() noexcept -> std::expected<Image, std::string> {
