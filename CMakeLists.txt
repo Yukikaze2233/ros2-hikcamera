@@ -6,7 +6,10 @@ set(CMAKE_CXX_STANDARD 23)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_POSITION_INDEPENDENT_CODE ON)
 
-find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+# 复用父目录已有的 OpenCV targets（add_subdirectory 场景）
+if(NOT TARGET OpenCV::core)
+    find_package(OpenCV REQUIRED COMPONENTS core imgproc)
+endif()
 
 # ---- MVS SDK ---------------------------------------------------------------
 # 优先从 src/sdk 查找（仓库自带头文件），其次从系统路径查找
