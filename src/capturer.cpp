@@ -47,6 +47,27 @@ auto Camera::read_image_with_timestamp() noexcept -> std::expected<Image, std::s
     return pimpl->read_image_with_timestamp();
 }
 
+// ---- Parameter core dispatch ----
+
+auto Camera::get_parameter_core(detail::parameter_id id) const
+    -> std::expected<detail::parameter_value, std::string> {
+    return pimpl->get_parameter_core(id);
+}
+
+auto Camera::set_parameter_core(detail::parameter_id id, detail::parameter_value val)
+    -> std::expected<void, std::string> {
+    return pimpl->set_parameter_core(id, val);
+}
+
+auto Camera::describe_parameter_core(detail::parameter_id id) const
+    -> detail::parameter_metadata {
+    return pimpl->describe_parameter_core(id);
+}
+
+auto Camera::execute_parameter_core(detail::parameter_id id) -> std::expected<void, std::string> {
+    return pimpl->execute_parameter_core(id);
+}
+
 Camera::Camera() noexcept
     : pimpl{std::make_unique<Impl>()} {}
 

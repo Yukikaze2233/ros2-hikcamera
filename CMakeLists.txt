@@ -79,5 +79,25 @@ set_target_properties(${PROJECT_NAME} PROPERTIES
     BUILD_RPATH "${MVS_RUNTIME_DIR}"
     HIKCAMERA_RUNTIME_DIR "${MVS_RUNTIME_DIR}")
 
-# 通过 PUBLIC include 路径，让消费者只需 link hikcamera 即可包含头文件
-# MVS 头文件不暴露给消费者（pimpl 模式已隔离）
+# ---- Tests ------------------------------------------------------------------
+enable_testing()
+
+# parameters_test — unit tests with fake backend (no real camera required)
+add_executable(parameters_test
+    tests/parameters_test.cpp
+)
+
+target_include_directories(parameters_test PRIVATE
+    ${CMAKE_CURRENT_SOURCE_DIR}/include
+    ${CMAKE_CURRENT_SOURCE_DIR}/src
+    ${MVS_INCLUDE_DIR}
+)
+
+target_link_libraries(parameters_test PRIVATE
+    ${OpenCV_LIBS}
+)
+
+set_target_properties(parameters_test PROPERTIES
+    BUILD_RPATH "${MVS_RUNTIME_DIR}")
+
+add_test(NAME parameters_test COMMAND parameters_test)
