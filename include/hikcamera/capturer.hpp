@@ -1,12 +1,18 @@
 #pragma once
 #include <chrono>
 #include <expected>
+#include <memory>
+#include <optional>
 #include <opencv2/core/mat.hpp>
+#include <string>
+#include <string_view>
+#include <vector>
 
 namespace hikcamera {
 static constexpr auto kMaxGain = float{16.9807};
 
 struct Config {
+    std::string device_id{};
     unsigned int timeout_ms = 2000;
 
     float exposure_us = 2000.;
@@ -19,6 +25,25 @@ struct Config {
     bool trigger_mode = false;
     bool fixed_framerate = true;
 };
+
+struct DeviceInfo {
+    std::string device_id{};
+    std::string user_defined_name{};
+    std::string serial_number{};
+    std::string model_name{};
+    std::string transport_layer{};
+};
+
+struct StreamFormat {
+    int width = 0;
+    int height = 0;
+    double framerate = 0.0;
+    std::string pixel_format_name{};
+    std::string source_pixel_format_name{};
+};
+
+auto select_device_index(const std::vector<DeviceInfo>& devices, std::string_view device_id)
+    -> std::expected<std::size_t, std::string>;
 
 class Camera {
 public:
@@ -43,6 +68,8 @@ public:
     auto disconnect() noexcept -> std::expected<void, std::string>;
 
     auto connected() const noexcept -> bool;
+    [[nodiscard]] auto device_info() const noexcept -> const std::optional<DeviceInfo>&;
+    [[nodiscard]] auto stream_format() const noexcept -> const std::optional<StreamFormat>&;
 
     /// @note: It takes time and will return before timeout.
     auto read_image() noexcept -> std::expected<cv::Mat, std::string>;

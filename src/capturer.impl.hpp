@@ -24,6 +24,8 @@ struct Camera::Impl final {
     unsigned int timeout_ms;
 
     std::optional<Config> config;
+    std::optional<DeviceInfo> device_info;
+    std::optional<StreamFormat> stream_format;
 
     ~Impl() noexcept {
         std::ignore = disconnect();
@@ -81,6 +83,8 @@ struct Camera::Impl final {
         if (camera_handler != nullptr) {
             std::ignore = disconnect();
         }
+        device_info.reset();
+        stream_format.reset();
 
         if (!config.has_value()) {
             return std::unexpected{"Need configure"};
@@ -91,13 +95,18 @@ struct Camera::Impl final {
         timeout_ms = config->timeout_ms;
         auto guard_handler = util::scope_exit{[this] { camera_handler = nullptr; }};
 
-        auto result = util::search_device();
-        if (!result.has_value())
-            return std::unexpected{result.error()};
+        auto devices = util::enumerate_devices();
+        if (!devices)
+            return std::unexpected{devices.error()};
 
-        auto device = result.value();
+        auto device_result = util::select_device_pointer(*devices, config->device_id);
+        if (!device_result)
+            return std::unexpected{device_result.error()};
+
+        auto* device = *device_result;
         if (device == nullptr)
             return std::unexpected{"Null device was got by searching"};
+        device_info = util::device_info_from_sdk(*device);
 
         // Create and open device
         if (sdk::OK != (code = MV_CC_CreateHandleWithoutLog(&camera_handler, device)))
@@ -161,6 +170,11 @@ struct Camera::Impl final {
             }
         }
 
+        if (auto format = query_stream_format(); !format)
+            return std::unexpected{"Failed to query stream format | " + format.error()};
+        else
+            stream_format = std::move(*format);
+
         // Start grabbing image
         if (sdk::OK != (code = MV_CC_StartGrabbing(camera_handler)))
             return util::make_unexpected_with_error("Failed to start grabbing", code);
@@ -173,7 +187,13 @@ struct Camera::Impl final {
     }
 
     auto disconnect() noexcept -> std::expected<void, std::string> {
-        auto on_exit = util::scope_exit{[this] { camera_handler = nullptr; }};
+        auto on_exit = util::scope_exit{[this] {
+            camera_handler = nullptr;
+            stream_format.reset();
+        }};
+
+        if (camera_handler == nullptr)
+            return {};
 
         if (auto ret = MV_CC_StopGrabbing(camera_handler); ret != sdk::OK)
             return util::make_unexpected_with_error("Failed to stop grabbing:", ret);
@@ -197,7 +217,7 @@ private:
     template <typename T>
     auto set(char const* key, T value) noexcept -> std::expected<void, std::string> {
         if (camera_handler == nullptr) {
-            std::unexpected{"Camera has not been initialized"};
+            return std::unexpected{"Camera has not been initialized"};
         }
 
         auto result = std::uint32_t{};
@@ -224,6 +244,73 @@ private:
                 "Failed to set '{}' with {}: {}", key, printable, translated);
         }
         return {};
+    }
+
+    auto get_int(const char* key) const noexcept -> std::expected<std::int64_t, std::string> {
+        if (camera_handler == nullptr)
+            return std::unexpected{"Camera has not been initialized"};
+
+        auto value = MVCC_INTVALUE_EX{};
+        if (const auto code = MV_CC_GetIntValueEx(camera_handler, key, &value); code != sdk::OK)
+            return util::make_unexpected_with_error(
+                std::format("Failed to get int '{}'", key), code);
+        return value.nCurValue;
+    }
+
+    auto get_float(const char* key) const noexcept -> std::expected<double, std::string> {
+        if (camera_handler == nullptr)
+            return std::unexpected{"Camera has not been initialized"};
+
+        auto value = MVCC_FLOATVALUE{};
+        if (const auto code = MV_CC_GetFloatValue(camera_handler, key, &value); code != sdk::OK)
+            return util::make_unexpected_with_error(
+                std::format("Failed to get float '{}'", key), code);
+        return value.fCurValue;
+    }
+
+    auto get_enum_symbolic(const char* key) const noexcept -> std::expected<std::string, std::string> {
+        if (camera_handler == nullptr)
+            return std::unexpected{"Camera has not been initialized"};
+
+        auto value = MVCC_ENUMVALUE{};
+        if (const auto code = MV_CC_GetEnumValue(camera_handler, key, &value); code != sdk::OK)
+            return util::make_unexpected_with_error(
+                std::format("Failed to get enum '{}'", key), code);
+
+        auto entry = MVCC_ENUMENTRY{};
+        entry.nValue = value.nCurValue;
+        if (const auto code = MV_CC_GetEnumEntrySymbolic(camera_handler, key, &entry);
+            code != sdk::OK) {
+            return util::make_unexpected_with_error(
+                std::format("Failed to get enum symbolic '{}'", key), code);
+        }
+        return std::string(entry.chSymbolic);
+    }
+
+    auto query_stream_format() const noexcept -> std::expected<StreamFormat, std::string> {
+        const auto width = get_int(sdk::key::Width);
+        if (!width)
+            return std::unexpected(width.error());
+
+        const auto height = get_int(sdk::key::Height);
+        if (!height)
+            return std::unexpected(height.error());
+
+        const auto framerate = get_float(sdk::key::AcquisitionFrameRate);
+        if (!framerate)
+            return std::unexpected(framerate.error());
+
+        const auto source_pixel_format = get_enum_symbolic(sdk::key::PixelFormat);
+        if (!source_pixel_format)
+            return std::unexpected(source_pixel_format.error());
+
+        return StreamFormat{
+            .width = static_cast<int>(*width),
+            .height = static_cast<int>(*height),
+            .framerate = *framerate,
+            .pixel_format_name = "BGR8",
+            .source_pixel_format_name = *source_pixel_format,
+        };
     }
 
     auto update_convert_context(sdk::FrameOut const& info) noexcept

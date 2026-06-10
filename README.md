@@ -2,6 +2,16 @@
 
 海康工业相机 MVS SDK 的 C++23 封装，支持 standalone CMake 和 ROS2 ament 构建。
 
+## 在 `laser_guidance` 仓库中的集成方式
+
+当本项目作为 `laser_guidance/vendor/hikcamera` 子模块使用时：
+
+- 默认优先直接使用仓库内 `src/sdk/include` 与 `src/sdk/lib`
+- 不再把“系统已安装完整 MVS”作为默认前提
+- 最终运行时依赖通过上层工程的 `RUNPATH` / `RPATH` 指回仓库内 vendor `.so`
+
+下文的 standalone / ROS2 说明仍适用于把 `hikcamera` 单独拿出去构建的场景。
+
 当前测试型号：MV-CS016-10UC / MV-CS050-10UC
 
 ## Standalone 构建（推荐）

@@ -1,13 +1,17 @@
 #pragma once
+#include "hikcamera/capturer.hpp"
 #include "errors.hpp"
 #include "MvCameraControl.h"
 
 #include <experimental/scope>
 
+#include <algorithm>
 #include <cstring>
 #include <expected>
 #include <format>
+#include <string>
 #include <string_view>
+#include <vector>
 
 namespace hikcamera::sdk {
 
@@ -51,6 +55,9 @@ constexpr auto ExposureTime = "ExposureTime";
 constexpr auto Gain = "Gain";
 constexpr auto TriggerMode = "TriggerMode";
 constexpr auto TriggerSource = "TriggerSource";
+constexpr auto Width = "Width";
+constexpr auto Height = "Height";
+constexpr auto PixelFormat = "PixelFormat";
 } // namespace key
 
 } // namespace hikcamera::sdk
@@ -97,32 +104,78 @@ constexpr auto is_rgb_pixel_type(MvGvspPixelType type) noexcept -> bool {
     }
 }
 
-constexpr auto compare(sdk::DeviceInfo const& info, std::string_view other) noexcept -> bool {
+inline auto string_from_buffer(const unsigned char* raw) -> std::string {
+    if (raw == nullptr)
+        return {};
+    return reinterpret_cast<const char*>(raw);
+}
 
-    unsigned char const* raw_name;
-    const auto& special = info.SpecialInfo;
-
-    switch (info.nTLayerType) {
-    case MV_GIGE_DEVICE: {
-        raw_name = special.stGigEInfo.chUserDefinedName;
-        break;
-    }
-    case MV_USB_DEVICE: {
-        raw_name = special.stUsb3VInfo.chUserDefinedName;
-        break;
-    }
-    default: return false;
-    }
-
-    if (const auto device_name = reinterpret_cast<char const*>(raw_name)) {
-        return other == device_name;
-    } else {
-        return false;
+inline auto transport_layer_name(const unsigned int layer_type) -> std::string {
+    switch (layer_type) {
+    case MV_GIGE_DEVICE: return "GigE";
+    case MV_USB_DEVICE: return "USB";
+    case MV_CAMERALINK_DEVICE: return "CameraLink";
+    case MV_GENTL_CXP_DEVICE: return "CXP";
+    case MV_GENTL_XOF_DEVICE: return "XOF";
+    default: return "Unknown";
     }
 }
 
-inline auto search_device(std::string_view custom_definition = {}) noexcept
-    -> std::expected<sdk::DeviceInfo*, std::string> {
+inline auto device_info_from_sdk(const sdk::DeviceInfo& info) -> DeviceInfo {
+    DeviceInfo result;
+    result.transport_layer = transport_layer_name(info.nTLayerType);
+
+    switch (info.nTLayerType) {
+    case MV_GIGE_DEVICE: {
+        const auto& gige = info.SpecialInfo.stGigEInfo;
+        result.user_defined_name = string_from_buffer(gige.chUserDefinedName);
+        result.serial_number = string_from_buffer(gige.chSerialNumber);
+        result.model_name = string_from_buffer(gige.chModelName);
+        result.device_id = result.user_defined_name.empty() ? result.serial_number
+                                                            : result.user_defined_name;
+        break;
+    }
+    case MV_USB_DEVICE: {
+        const auto& usb = info.SpecialInfo.stUsb3VInfo;
+        result.user_defined_name = string_from_buffer(usb.chUserDefinedName);
+        result.serial_number = string_from_buffer(usb.chSerialNumber);
+        result.model_name = string_from_buffer(usb.chModelName);
+        result.device_id = result.user_defined_name.empty() ? result.serial_number
+                                                            : result.user_defined_name;
+        break;
+    }
+    case MV_GENTL_CXP_DEVICE: {
+        const auto& cxp = info.SpecialInfo.stCXPInfo;
+        result.device_id = string_from_buffer(cxp.chDeviceID);
+        result.user_defined_name = string_from_buffer(cxp.chUserDefinedName);
+        result.serial_number = string_from_buffer(cxp.chSerialNumber);
+        result.model_name = string_from_buffer(cxp.chModelName);
+        break;
+    }
+    case MV_GENTL_XOF_DEVICE: {
+        const auto& xof = info.SpecialInfo.stXoFInfo;
+        result.device_id = string_from_buffer(xof.chDeviceID);
+        result.user_defined_name = string_from_buffer(xof.chUserDefinedName);
+        result.serial_number = string_from_buffer(xof.chSerialNumber);
+        result.model_name = string_from_buffer(xof.chModelName);
+        break;
+    }
+    default: break;
+    }
+
+    if (result.device_id.empty())
+        result.device_id = result.user_defined_name.empty() ? result.serial_number
+                                                            : result.user_defined_name;
+
+    return result;
+}
+
+inline auto compare(const DeviceInfo& info, std::string_view other) noexcept -> bool {
+    return other == info.device_id || other == info.user_defined_name || other == info.serial_number
+        || other == info.model_name;
+}
+
+inline auto enumerate_devices() noexcept -> std::expected<std::vector<sdk::DeviceInfo*>, std::string> {
 
     auto devices = sdk::DeviceInfoList{};
     std::memset(&devices, 0, sizeof(devices));
@@ -133,29 +186,44 @@ inline auto search_device(std::string_view custom_definition = {}) noexcept
         return std::unexpected{std::format("Failed to enum device: {}", msg)};
     }
 
-    const auto [device_num, device_infos] = devices;
+    const auto device_num = devices.nDeviceNum;
     if (device_num == 0) {
         return std::unexpected{"No device was found"};
     }
-    if (custom_definition.empty()) {
-        if (device_num == 1 && device_infos[0] != nullptr) {
-            return device_infos[0];
-        } else {
-            return std::unexpected{std::format("{} devices were found", device_num)};
-        }
-    } else {
-        for (auto index = 0; index < device_num; index++) {
-            auto* info_ptr = device_infos[index];
-            if (info_ptr == nullptr)
-                continue;
-            if (compare(*info_ptr, custom_definition)) {
-                return info_ptr;
-            }
-        }
-        return std::unexpected{
-            std::format("No device matches the custom name among {} devices", device_num)};
+
+    std::vector<sdk::DeviceInfo*> result_devices;
+    result_devices.reserve(device_num);
+    for (unsigned int index = 0; index < device_num; ++index) {
+        if (devices.pDeviceInfo[index] != nullptr)
+            result_devices.push_back(devices.pDeviceInfo[index]);
     }
-    return std::unexpected{"Unreachable result"};
+    if (result_devices.empty())
+        return std::unexpected{"Enum returned zero usable device pointers"};
+    return result_devices;
+}
+
+inline auto to_public_device_infos(const std::vector<sdk::DeviceInfo*>& devices) -> std::vector<DeviceInfo> {
+    std::vector<DeviceInfo> result;
+    result.reserve(devices.size());
+    for (const auto* device : devices) {
+        if (device != nullptr)
+            result.push_back(device_info_from_sdk(*device));
+    }
+    return result;
+}
+
+inline auto select_device_pointer(
+    const std::vector<sdk::DeviceInfo*>& devices, std::string_view device_id) noexcept
+    -> std::expected<sdk::DeviceInfo*, std::string> {
+    if (devices.empty())
+        return std::unexpected{"No device was found"};
+
+    const auto public_infos = to_public_device_infos(devices);
+    const auto selected_index = select_device_index(public_infos, device_id);
+    if (!selected_index)
+        return std::unexpected(selected_index.error());
+
+    return devices[*selected_index];
 }
 
 inline auto make_information(const sdk::DeviceInfo& info) noexcept -> std::string {
