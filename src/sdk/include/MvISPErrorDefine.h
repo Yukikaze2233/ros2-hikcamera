@@ -1,4 +1,4 @@
-
+﻿
 #ifndef _MV_ISP_ERROR_DEFINE_H_
 #define _MV_ISP_ERROR_DEFINE_H_
 
@@ -89,5 +89,10 @@
 #define MV_ALG_E_DENOISE_GAIN_NOT_EXIST      0x1040200d  //输入的相机增益不存在(增益个数已达上限)
 #define MV_ALG_E_DENOISE_GAIN_BEYOND_RANGE   0x1040200e  //输入的相机增益不在范围内
 #define MV_ALG_E_DENOISE_NP_BUF_SIZE         0x1040200f  //输入的噪声特性内存大小错误
+
+// 去紫边特有错误码
+#define MV_ALG_E_PFC_ROI_PT                 0x10405000  //去紫边算法ROI原点错误
+#define MV_ALG_E_PFC_ROI_SIZE               0x10405001  //去紫边算法ROI大小错误
+#define MV_ALG_E_PFC_KERNEL_SIZE            0x10405002  //去紫边算法滤波核尺寸错误
 
 #endif //_MV_ISP_ERROR_DEFINE_H_

@@ -1,4 +1,4 @@
-
+﻿
 #ifndef _MV_OBSOLETE_CAM_PARAMS_H_
 #define _MV_OBSOLETE_CAM_PARAMS_H_
 
@@ -559,8 +559,7 @@ typedef struct _MV_SAVE_IMAGE_PARAM_T_EX_
     enum MV_SAVE_IAMGE_TYPE enImageType;                            ///< [IN]  \~chinese 输出图片格式           \~english Output Image Format
     unsigned int            nJpgQuality;                            ///< [IN]  \~chinese JPG编码质量(50-99]，其它格式无效   \~english Encoding quality(50-99]，Other formats are invalid
 
-
-    unsigned int            iMethodValue;                           ///< [IN]  \~chinese 插值方法 0-快速 1-均衡 2-最优（其它值默认为最优） 3-最优+  \~english Bayer interpolation method  0-Fast 1-Equilibrium 2-Optimal 3-Optimal+
+    unsigned int            iMethodValue;                           ///< [IN]  \~chinese 插值方法 0-快速 1-均衡（其它值默认为均衡） 2-最优 3-最优+  \~english Bayer interpolation method  0-Fast 1-Equilibrium 2-Optimal 3-Optimal+
 
     unsigned int            nReserved[3];                           ///<       \~chinese 预留                   \~english Reserved
 
@@ -580,7 +579,7 @@ typedef struct _MV_SAVE_IMG_TO_FILE_PARAM_
     unsigned int            nQuality;                               ///< [IN]  \~chinese JPG编码质量(50-99]，其它格式无效 \~english JPG Encoding quality(50-99],Other formats are invalid
     char                    pImagePath[256];                        ///< [IN]  \~chinese 输入文件路径           \~english Input file path
 
-    int                     iMethodValue;                           ///< [IN]  \~chinese 插值方法 0-快速 1-均衡 2-最优（其它值默认为最优） 3-最优+ \~english Bayer interpolation method  0-Fast 1-Equilibrium 2-Optimal 3-Optimal+
+    int                     iMethodValue;                           ///< [IN]  \~chinese 插值方法 0-快速 1-均衡（其它值默认为均衡） 2-最优 3-最优+ \~english Bayer interpolation method  0-Fast 1-Equilibrium 2-Optimal 3-Optimal+
 
     unsigned int            nReserved[8];                           ///<       \~chinese 预留                   \~english Reserved
 
@@ -605,6 +604,50 @@ typedef struct _MV_CC_PIXEL_CONVERT_PARAM_
     unsigned int            nRes[4];                                ///<       \~chinese 预留                   \~english Reserved
 
 }MV_CC_PIXEL_CONVERT_PARAM;
+
+/// \~chinese 保存的3D数据格式          \~english The saved format for 3D data
+enum MV_SAVE_POINT_CLOUD_FILE_TYPE
+{
+    MV_PointCloudFile_Undefined         = 0,                        ///< \~chinese 未定义的点云格式             \~english Undefined point cloud format
+    MV_PointCloudFile_PLY               = 1,                        ///< \~chinese PLY点云格式                  \~english The point cloud format named PLY
+    MV_PointCloudFile_CSV               = 2,                        ///< \~chinese CSV点云格式                  \~english The point cloud format named CSV
+    MV_PointCloudFile_OBJ               = 3,                        ///< \~chinese OBJ点云格式                  \~english The point cloud format named OBJ
+
+};
+
+/// \~chinese 保存3D数据到缓存          \~english Save 3D data to buffer
+typedef struct _MV_SAVE_POINT_CLOUD_PARAM_
+{
+    unsigned int                    nLinePntNum;                    ///< [IN]  \~chinese 行点数，即图像宽       \~english The number of points in each row,which is the width of the image
+    unsigned int                    nLineNum;                       ///< [IN]  \~chinese 行数，即图像高         \~english The number of rows,which is the height of the image
+
+    enum MvGvspPixelType            enSrcPixelType;                 ///< [IN]  \~chinese 输入数据的像素格式     \~english The pixel format of the input data
+    unsigned char*                  pSrcData;                       ///< [IN]  \~chinese 输入数据缓存           \~english Input data buffer
+    unsigned int                    nSrcDataLen;                    ///< [IN]  \~chinese 输入数据长度           \~english Input data length
+
+    unsigned char*                  pDstBuf;                        ///< [OUT] \~chinese 输出像素数据缓存       \~english Output pixel data buffer
+    unsigned int                    nDstBufSize;                    ///< [IN]  \~chinese 提供的输出缓冲区大小(nLinePntNum * nLineNum * (16*3 + 4) + 2048)   \~english Output buffer size provided(nLinePntNum * nLineNum * (16*3 + 4) + 2048) 
+    unsigned int                    nDstBufLen;                     ///< [OUT] \~chinese 输出像素数据缓存长度   \~english Output pixel data buffer size
+    enum MV_SAVE_POINT_CLOUD_FILE_TYPE   enPointCloudFileType;      ///< [IN]  \~chinese 提供输出的点云文件类型 \~english Output point data file type provided
+
+    unsigned int        nReserved[8];                               ///<       \~chinese 保留字段               \~english Reserved
+
+}MV_SAVE_POINT_CLOUD_PARAM;
+
+/// \~chinese 显示帧信息                \~english Display frame information
+typedef struct _MV_DISPLAY_FRAME_INFO_
+{
+	void*                   hWnd;                                   ///< [IN] \~chinese 窗口句柄                \~english HWND
+	unsigned char*          pData;                                  ///< [IN] \~chinese 显示的数据              \~english Data Buffer
+	unsigned int            nDataLen;                               ///< [IN] \~chinese 数据长度                \~english Data Size
+	unsigned short          nWidth;                                 ///< [IN] \~chinese 图像宽                  \~english Width
+	unsigned short          nHeight;                                ///< [IN] \~chinese 图像高                  \~english Height
+	enum MvGvspPixelType    enPixelType;                            ///< [IN] \~chinese 像素格式                \~english Pixel format
+
+	unsigned int            enRenderMode;                             ///  [IN] \~chinese 图像渲染方式  Windows:0-GDI(默认), 1-D3D, 2-OPENGL Linux: 0-OPENGL(默认)   \~english Windows:0-GDI(default), 1-D3D, 2-OPENGL Linux: 0-OPENGL(default)
+	unsigned int            nRes[3];                                ///<      \~chinese 保留                    \~english Reserved
+
+}MV_DISPLAY_FRAME_INFO;
 
 
 

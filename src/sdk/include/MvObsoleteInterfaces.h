@@ -1,4 +1,4 @@
-
+﻿
 #ifndef _MV_OBSOLETE_INTERFACES_H_
 #define _MV_OBSOLETE_INTERFACES_H_
 
@@ -196,9 +196,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetOneFrame(IN void* handle, IN OUT unsigned 
                 缓存有无数据，有数据则范围数据，无数据返回错误码
                 （该接口已弃用，建议改用 MV_CC_GetOneFrameTimeOut接口）
  *  @param       handle                 [IN]          句柄
- *  @param       pData                  [OUT]         图像数据接收指针
+ *  @param       pData                  [IN][OUT]     图像数据接收指针
  *  @param       nDataSize              [IN]          接收缓存大小
- *  @param       pFrameInfo             [OUT]         图像信息结构体
+ *  @param       pFrameInfo             [IN][OUT]     图像信息结构体
  *  @return 成功，返回MV_OK；错误，返回错误码
  
  *  @fn         MV_CC_GetOneFrameEx
@@ -1833,7 +1833,22 @@ MV_CAMCTRL_API int __stdcall MV_CAML_GetDeviceBauderate(IN void* handle,unsigned
 ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CAML_GetSupportBauderates(IN void* handle,unsigned int* pnBaudrateAblity);
 
+/********************************************************************//**
+*  @~chinese
+*  @brief  注册流异常消息回调，在打开设备之后调用（只支持U3V相机，不支持GenTL设备）
+*  @param  handle                      [IN]            设备句柄
+*  @param  cbException                 [IN]            异常回调函数指针
+*  @param  pUser                       [IN]            用户自定义变量
+*  @return 成功,返回MV_OK,失败,返回错误码
 
+*  @~english
+*  @brief  Register exception stream callBack, call after open device (only support U3V Camera, don't support GenTL Device)
+*  @param  handle                      [IN]            Device handle
+*  @param  cbException                 [IN]            Exception callback function pointer
+*  @param  pUser                       [IN]            User defined variable
+*  @return Success, return MV_OK. Failure, return error code
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_USB_RegisterStreamExceptionCallBack(IN void* handle, IN void(__stdcall* cbException)(MV_CC_STREAM_EXCEPTION_TYPE enExceptionType, void* pUser), IN void* pUser);
 
 /********************************************************************//**
  *  @~chinese
@@ -1912,6 +1927,218 @@ MV_CAMCTRL_API int __stdcall MV_CC_ConvertPixelType(IN void* handle, IN OUT MV_C
             This API is used to set the log file storing path.
 ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_SetSDKLogPath(IN const char * strSDKLogPath);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  显示一帧图像
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pstDisplayInfo              [IN]            图像信息
+ *  @return 成功，返回MV_OK；错误，返回错误码 
+ *  @remarks 与设备类型无关，渲染模式为D3D时，支持的最大分辨率为16384 * 163840
+
+ *  @~english
+ *  @brief  Display one frame image
+ *  @param  handle                      [IN]            Device handle
+ *  @param  pstDisplayInfo              [IN]            Frame Info
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Not related to device type，When the render mode is D3D, the maximum resolution supported is 16384 * 163840
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_DisplayOneFrame(IN void* handle, IN MV_DISPLAY_FRAME_INFO* pstDisplayInfo);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取支持的传输层
+ *  @return 支持的传输层编号 
+ *  @remarks 返回是设备的传输层，比如（ MV_GIGE_DEVICE | MV_USB_DEVICE |MV_GENTL_XOF_DEVICE 等），不包含采集卡的类型
+
+ *  @~english
+ *  @brief  Get supported Transport Layer
+ *  @return Supported Transport Layer number
+ *  @remarks The return is the transport layer of the device, such as (MV_GIGE-DEVICE | MV_USBDEVICE | MV_GENTL-XOF-DEVICE, etc.), excluding the type of Frame grabber
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_EnumerateTls();
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  创建设备句柄，不生成日志
+ *  @param  handle                      [IN][OUT]       设备句柄
+ *  @param  pstDevInfo                  [IN]            设备信息结构体
+ *  @return 成功，返回MV_OK；错误，返回错误码 
+ *  @remarks 根据输入的设备信息，创建库内部必须的资源和初始化内部模块
+             通过该接口创建句柄，调用SDK接口，不会默认生成SDK日志文件，如果需要生成日志文件可以通过MV_CC_CreateHandle创建句柄，日志文件自动生成
+ 
+ *  @~english
+ *  @brief  Create Device Handle without log
+ *  @param  handle                      [IN][OUT]       Device handle
+ *  @param  pstDevInfo                  [IN]            Device Information Structure
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Create required resources within library and initialize internal module according to input device information.
+             Create handle and call SDK interface through this interface, and SDK log file will not be created. To create logs,
+             create handle through MV_CC_CreateHandle, and log files will be automatically generated.
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_CreateHandleWithoutLog(IN OUT void ** handle, IN const MV_CC_DEVICE_INFO* pstDevInfo);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  注册图像数据回调，RGB
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  cbOutput                    [IN]            回调函数指针
+ *  @param  pUser                       [IN]            用户自定义变量
+ *  @return 成功，返回MV_OK；错误，返回错误码
+ *  @remarks 通过该接口可以设置图像数据回调函数，在MV_CC_CreateHandle之后即可调用。图像数据采集有两种方式，两种方式不能复用：
+             方式一：调用MV_CC_RegisterImageCallBackForRGB设置RGB24格式图像数据回调函数，然后调用MV_CC_StartGrabbing开始采集，采集的图像数据在设置的回调函数中返回。
+             方式二：调用MV_CC_StartGrabbing开始采集，然后在应用层循环调用MV_CC_GetImageForRGB获取RGB24格式的帧数据,
+                      获取帧数据时上层应用程序需要根据帧率控制好调用该接口的频率。
+             该接口不支持MV_CAMERALINK_DEVICE 类型的设备。  
+ 
+ *  @~english
+ *  @brief  register image data callback, RGB
+ *  @param  handle                      [IN]            Device handle
+ *  @param  cbOutput                    [IN]            Callback function pointer
+ *  @param  pUser                       [IN]            User defined variable
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Before calling this API to set image data callback function, you should call this API MV_CC_CreateHandle.There are two image acquisition modes, the two modes cannot be reused:
+             Mode 1: Call MV_CC_RegisterImageCallBackForRGB to set RGB24 format image data callback function, and then call MV_CC_StartGrabbing to start acquisition, the collected image data will be returned in the configured callback function.
+             Mode 2: Call MV_CC_StartGrabbing to start acquisition, and the call MV_CC_GetImageForRGB repeatedly in application layer to get frame data with RGB24 format.
+                     When getting frame data, the upper application program should control the frequency of calling this API according to frame rate.
+             This interface does not support devices of type MV_CAMERALINK_DEVICE
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_RegisterImageCallBackForRGB(IN void* handle, 
+                                                         IN void(__stdcall* cbOutput)(unsigned char * pData, MV_FRAME_OUT_INFO_EX* pFrameInfo, void* pUser), IN void* pUser);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  注册图像数据回调，BGR
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  cbOutput                    [IN]            回调函数指针
+ *  @param  pUser                       [IN]            用户自定义变量
+ *  @return 成功，返回MV_OK；错误，返回错误码
+ *  @remarks 通过该接口可以设置图像数据回调函数，在MV_CC_CreateHandle之后即可调用。图像数据采集有两种方式，两种方式不能复用:
+             方式一：调用MV_CC_RegisterImageCallBackForBGR设置BGR24图像数据回调函数，然后调用MV_CC_StartGrabbing开始采集，采集的图像数据在设置的回调函数中返回。
+             方式二：调用MV_CC_StartGrabbing开始采集，然后在应用层循环调用MV_CC_GetImageForBGR获取BGR24格式的帧数据,
+                      获取帧数据时上层应用程序需要根据帧率控制好调用该接口的频率。
+             该接口不支持MV_CAMERALINK_DEVICE 类型的设备。 
+ 
+ *  @~english
+ *  @brief  register image data callback, BGR
+ *  @param  handle                      [IN]            Device handle
+ *  @param  cbOutput                    [IN]            Callback function pointer
+ *  @param  pUser                       [IN]            User defined variable
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Before calling this API to set image data callback function, you should call this API MV_CC_CreateHandle.There are two image acquisition modes, the two modes cannot be reused:
+             Mode 1: Call MV_CC_RegisterImageCallBackForBGR to set RGB24 format image data callback function, and then call MV_CC_StartGrabbing to start acquisition, the collected image data will be returned in the configured callback function.
+             Mode 2: Call MV_CC_StartGrabbing to start acquisition, and the call MV_CC_GetImageForBGR repeatedly in application layer to get frame data with BGR24 format.
+                     When getting frame data,the upper application program should control the frequency of calling this API according to frame rate.
+            This interface does not support devices of type MV_CAMERALINK_DEVICE
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_RegisterImageCallBackForBGR(IN void* handle, 
+                                                         IN void(__stdcall* cbOutput)(unsigned char * pData, MV_FRAME_OUT_INFO_EX* pFrameInfo, void* pUser), IN void* pUser);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取一帧RGB数据，此函数为查询式获取，每次调用查询内部
+            缓存有无数据，有数据则获取数据，无数据返回错误码
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pData                       [IN][OUT]       图像数据接收指针
+ *  @param  nDataSize                   [IN]            接收缓存大小
+ *  @param  pstFrameInfo                [IN][OUT]       图像信息结构体
+ *  @param  nMsec                       [IN]            等待超时时间
+ *  @return 成功，返回MV_OK；错误，返回错误码
+ *  @remarks 每次调用该接口，将查询内部缓存是否有数据，如果有数据则转换成RGB24格式返回，如果没有数据则返回错误码。
+             因为图像转换成RGB24格式有耗时，所以当数据帧率过高时该接口可能会导致丢帧。调用该接口获取图像数据帧之前需要先调用MV_CC_StartGrabbing启动图像采集。
+             该接口为主动式获取帧数据，上层应用程序需要根据帧率，控制好调用该接口的频率。
+             该接口不支持MV_CAMERALINK_DEVICE设备。
+ 
+ *  @~english
+ *  @brief  Get one frame of RGB data, this function is using query to get data
+            query whether the internal cache has data, get data if there has, return error code if no data
+ *  @param  handle                      [IN]            Device handle
+ *  @param  pData                       [IN][OUT]       Image data receiving buffer
+ *  @param  nDataSize                   [IN]            Buffer size
+ *  @param  pstFrameInfo                [IN][OUT]       Image information structure
+ *  @param  nMsec                       [IN]            Waiting timeout
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Each time the API is called, the internal cache is checked for data. If there is data, it will be transformed as RGB24 format for return, if there is no data, return error code. 
+             As time-consuming exists when transform the image to RGB24 format,this API may cause frame loss when the data frame rate is too high.
+             Before calling this API to get image data frame, call MV_CC_StartGrabbing to start image acquisition.
+             This API can get frame data actively, the upper layer program should control the frequency of calling this API according to the frame rate.
+             This API is not supported by MV_CAMERALINK_DEVICE device.
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_GetImageForRGB(IN void* handle, IN OUT unsigned char * pData , IN unsigned int nDataSize, IN OUT MV_FRAME_OUT_INFO_EX* pstFrameInfo, IN int nMsec);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取一帧BGR数据，此函数为查询式获取，每次调用查询内部
+            缓存有无数据，有数据则获取数据，无数据返回错误码
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pData                       [IN][OUT]       图像数据接收指针
+ *  @param  nDataSize                   [IN]            接收缓存大小
+ *  @param  pstFrameInfo                [IN][OUT]       图像信息结构体
+ *  @param  nMsec                       [IN]            等待超时时间
+ *  @return 成功，返回MV_OK；错误，返回错误码
+ *  @remarks 每次调用该接口，将查询内部缓存是否有数据，如果有数据则转换成BGR24格式返回，如果没有数据则返回错误码。
+             因为图像转换成BGR24格式有耗时，所以当数据帧率过高时该接口可能会导致丢帧.调用该接口获取图像数据帧之前需要先调用MV_CC_StartGrabbing启动图像采集。
+             该接口为主动式获取帧数据，上层应用程序需要根据帧率，控制好调用该接口的频率。
+             该接口不支持CameraLink设备。
+ 
+ *  @~english
+ *  @brief  Get one frame of BGR data, this function is using query to get data
+            query whether the internal cache has data, get data if there has, return error code if no data
+ *  @param  handle                      [IN]            Device handle
+ *  @param  pData                       [IN][OUT]       Image data receiving buffer
+ *  @param  nDataSize                   [IN]            Buffer size
+ *  @param  pstFrameInfo                [IN][OUT]       Image information structure
+ *  @param  nMsec                       [IN]            Waiting timeout
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Before calling this API to set image data callback function, you should call this API MV_CC_CreateHandle.
+             There are two image acquisition modes, the two modes cannot be reused: 
+             Mode 1: Call MV_CC_RegisterImageCallBackForBGR to set RGB24 format image data callback function, and then call MV_CC_StartGrabbing to start acquisition, the collected image data will be returned in the configured callback function.
+             Mode 2: Call MV_CC_StartGrabbing to start acquisition, and the call MV_CC_GetImageForBGR repeatedly in application layer to get frame data with BGR24 format.
+             When getting frame data, the upper application program should control the frequency of calling this API according to frame rate.
+             This API is not supported by CameraLink device.
+ ***********************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_GetImageForBGR(IN void* handle, IN OUT unsigned char * pData , IN unsigned int nDataSize, IN OUT MV_FRAME_OUT_INFO_EX* pstFrameInfo, IN int nMsec);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  打开获取或设置相机参数的GUI界面
+ *  @param  handle                      [IN]            设备句柄
+ *  @return 成功，返回MV_OK，失败，返回错误码。
+ *  @remarks 通过MV_CC_OpenDevice连接设备后，可以通过该接口获取或设置设备参数。
+ *  @remarks 限制：在同一线程中多相机同时调用该接口，只能打开当前一个GUI界面，需要关闭当前相机GUI界面后，才可打开另一个相机的GUI界面（后续版本优化）
+			 该接口仅支持windows平台
+
+ *  @~english
+ *  @brief  Open the GUI interface for getting or setting camera parameters
+ *  @param  handle                      [IN]            Device handle
+ *  @return Success, return MV_OK, Failure, return error code.
+ *  @remarks After connecting to device through MV_CC_OpenDevice, use this interface to get or set device params.
+ *  @remarks Limit: calling this interface multiple times in the same thread can only open one GUI interface. 
+             You need to wait until the previous GUI interface is closed before opening the next GUI interface.(Subsequent version optimization)
+			 This interface only supports windows platform.
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_OpenParamsGUI(IN void* handle);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  保存3D点云数据，支持PLY、CSV和OBJ三种格式
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pstPointDataParam           [IN][OUT]       保存点云数据参数结构体
+ *  @return 成功，返回MV_OK；错误，返回错误码 
+ *  @remarks 3D数据格式保存成3D文件格式，支持PLY/CSV/OBJ，
+             目前支持PixelType_Gvsp_Coord3D_ABC32、PixelType_Gvsp_Coord3D_ABC32f、PixelType_Gvsp_Coord3D_AB32、PixelType_Gvsp_Coord3D_AB32f、PixelType_Gvsp_Coord3D_AC32、PixelType_Gvsp_Coord3D_AC32f,
+             暂不支持其他3D格式。
+ 
+ *  @~english
+ *  @brief  Save 3D point data, support PLY、CSV and OBJ
+ *  @param  handle                      [IN]            Device handle
+ *  @param  pstPointDataParam           [IN][OUT]       Save 3D point data parameters structure
+ *  @return Success, return MV_OK. Failure, return error code
+ *  @remarks Save the 3D data format to 3D file format，support PLY、CSV and OBJ,
+             only support PixelType_Gvsp_Coord3D_ABC32、PixelType_Gvsp_Coord3D_ABC32f、PixelType_Gvsp_Coord3D_AB32、PixelType_Gvsp_Coord3D_AB32f、PixelType_Gvsp_Coord3D_AC32、PixelType_Gvsp_Coord3D_AC32f
+             Other 3D format is not supported now.
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_SavePointCloudData(IN void* handle, IN OUT MV_SAVE_POINT_CLOUD_PARAM* pstPointDataParam);
 
 
 #ifdef __cplusplus

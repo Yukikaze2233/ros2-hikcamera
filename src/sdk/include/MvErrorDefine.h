@@ -1,4 +1,4 @@
-
+﻿
 #ifndef _MV_ERROR_DEFINE_H_
 #define _MV_ERROR_DEFINE_H_
 
@@ -36,6 +36,18 @@
 #define MV_E_NOOUTBUF               0x8000000D  ///< \~chinese 没有可输出的缓存         \~english No Avaliable Buffer
 #define MV_E_ENCRYPT                0x8000000E  ///< \~chinese 加密错误                 \~english Encryption error
 #define MV_E_OPENFILE               0x8000000F  ///< \~chinese 打开文件出现错误         \~english open file error
+#define MV_E_BUF_IN_USE             0x80000010  ///< \~chinese 缓存地址已使用           \~english Buffer already in use
+#define MV_E_BUF_INVALID            0x80000011  ///< \~chinese 无效的缓存地址           \~english Buffer address invalid
+#define MV_E_NOALIGN_BUF            0x80000012  ///< \~chinese 缓存对齐异常             \~english Buffer alignmenterror error
+#define MV_E_NOENOUGH_BUF_NUM       0x80000013  ///< \~chinese 缓存个数不足             \~english Insufficient cache count
+#define MV_E_PORT_IN_USE            0x80000014  ///< \~chinese 串口被占用               \~english Port is in use
+#define MV_E_IMAGE_DECODEC          0x80000015  ///< \~chinese 解码错误(SDK校验图像异常)\~english Decoding error (SDK verification image exception)
+#define MV_E_UINT32_LIMIT           0x80000016  ///  \~chinese 图像大小超过unsigned int返回，接口不支持   
+#define MV_E_IMAGE_HEIGHT           0x80000017  ///  \~chinese 图像高度异常（残帧丢弃） \~english image height anomaly (discard incomplete images)
+#define MV_E_NOENOUGH_DDR           0x80000018  ///< \~chinese DDR缓存不足              \~english The DDR cache is Insufficient
+#define MV_E_NOENOUGH_STREAM        0x80000019  ///< \~chinese 流通道不足               \~english The stream channel is Insufficient
+#define MV_E_NORESPONSE             0x8000001A  ///< \~chinese 设备无响应               \~english No response from device
+
 #define MV_E_UNKNOW                 0x800000FF  ///< \~chinese 未知的错误               \~english Unknown error
 /// @}
 
@@ -72,6 +84,7 @@
 #define MV_E_BUSY                   0x80000204  ///< \~chinese 设备忙，或网络断开       \~english Device is busy, or network disconnected
 #define MV_E_PACKET                 0x80000205  ///< \~chinese 网络包数据错误           \~english Network data packet error
 #define MV_E_NETER                  0x80000206  ///< \~chinese 网络相关错误             \~english Network error
+#define MV_E_SUPPORT_MODIFY_DEVICE_IP   0x8000020E ///< 在固定IP模式下不支持修改设备IP模式  \~english Current Mode Not Support Modify Ip
 #define MV_E_KEY_VERIFICATION       0x8000020F  ///< \~chinese 秘钥校验错误              \~english SwitchKey error
 #define MV_E_IP_CONFLICT            0x80000221  ///< \~chinese 设备IP冲突               \~english Device IP conflict
 /// @}
