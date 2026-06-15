@@ -1,83 +1,77 @@
 # Hikcamera
 
-海康工业相机 MVS SDK 的 C++23 封装，支持 standalone CMake 和 ROS2 ament 构建。
-
-## 在 `laser_guidance` 仓库中的集成方式
-
-当本项目作为 `laser_guidance/vendor/hikcamera` 子模块使用时：
-
-- 默认优先直接使用仓库内 `src/sdk/include` 与 `src/sdk/lib`
-- 不再把“系统已安装完整 MVS”作为默认前提
-- 最终运行时依赖通过上层工程的 `RUNPATH` / `RPATH` 指回仓库内 vendor `.so`
-
-下文的 standalone / ROS2 说明仍适用于把 `hikcamera` 单独拿出去构建的场景。
+海康工业相机 MVS SDK 的 C++23 封装，提供采集接口和 typed parameter API。
 
 当前测试型号：MV-CS016-10UC / MV-CS050-10UC
 
-## Standalone 构建（推荐）
+## Build
 
 依赖：
 
-- CMake ≥ 3.16
-- C++23 编译器（GCC 14+ / Clang 18+）
-- OpenCV ≥ 4.5
-- 海康 MVS SDK（从[海康官网](https://www.hikrobotics.com/machinevision)下载安装）
+- CMake >= 3.16
+- C++23 编译器
+- OpenCV >= 4.5
+- 海康 MVS SDK
+
+默认构建模式为 `HIKCAMERA_SDK_MODE=AUTO`：
+
+- 如果 `src/sdk/include/MvCameraControl.h` 和 `src/sdk/lib/libMvCameraControl.so` 都存在，则使用仓库内 vendored SDK
+- 否则回退到 `system` 模式，从 `MVS_SDK_ROOT` 或 `/opt/MVS` 读取 `include` 和 `lib/64`
+- 这个判断由子模块自身完成；上层工程只需在需要固定来源时显式传 `HIKCAMERA_SDK_MODE=system|vendor`
+- 主仓库的运行脚本会跟随 `build/` 里生成的 Hik mode 选择，避免运行期与编译期不一致
 
 ```bash
-# 配置（指定 MVS SDK 安装路径，可选）
-cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
-  -DMVS_SDK_ROOT=/opt/MVS
-
-# 构建
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
 cmake --build build --parallel
 ```
 
-## 通过 CMake FetchContent 引入
+显式使用 vendored SDK：
 
-在项目的 `CMakeLists.txt` 中：
-
-```cmake
-include(FetchContent)
-FetchContent_Declare(
-    hikcamera
-    URL https://github.com/Yukikaze2233/ros2-hikcamera/releases/download/v2.1.0/hikcamera-src-2.1.0.zip
-    URL_HASH SHA256=<see release notes>
-    DOWNLOAD_EXTRACT_TIMESTAMP TRUE
-)
-FetchContent_MakeAvailable(hikcamera)
-
-target_link_libraries(your_app PRIVATE hikcamera)
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DHIKCAMERA_SDK_MODE=vendor
 ```
 
-使用：
+显式使用系统 SDK：
+
+```bash
+cmake -S . -B build -DCMAKE_BUILD_TYPE=Release \
+  -DHIKCAMERA_SDK_MODE=system \
+  -DMVS_SDK_ROOT=/opt/MVS
+```
+
+也可以用环境变量：
+
+```bash
+HIKCAMERA_SDK_MODE=system MVS_SDK_ROOT=/opt/MVS cmake -S . -B build
+```
+
+## Public API
+
+核心接口：
+
+- `hikcamera::Camera`
+- `hikcamera::Camera::parameter<Tag>()`
+- `hikcamera::Camera::execute<Tag>()`
+- `hikcamera/parameters.hpp` 中的 tag / traits
+
+示例：
 
 ```cpp
 #include <hikcamera/capturer.hpp>
+#include <hikcamera/parameters.hpp>
 
-auto camera = hikcamera::Camera{};
+hikcamera::Camera camera;
 camera.configure({.exposure_us = 1500, .framerate = 80});
-if (auto result = camera.connect()) {
-    auto mat = camera.read_image();  // std::expected<cv::Mat, std::string>
+if (auto connected = camera.connect()) {
+    auto exposure = camera.parameter<hikcamera::param::exposure_time_us>().get();
+    auto set_gain = camera.parameter<hikcamera::param::gain>().set(6.0F);
+    auto trigger = camera.execute<hikcamera::param::software_trigger>();
 }
 ```
 
-## ROS2 构建（兼容模式）
+## Notes
 
-保留 `package.xml`，仍可通过 ament 构建：
-
-```bash
-cd /path/to/rmcs_ws/
-git clone https://github.com/Yukikaze2233/ros2-hikcamera.git src/hikcamera
-colcon build --packages-select hikcamera --symlink-install --merge-install
-```
-
-## 故障排除
-
-- **未找到相机但 `lsusb` 能找到**：配置 udev 规则：
-  ```bash
-  echo 'SUBSYSTEM=="usb", ATTR{idVendor}=="2bdf", ATTR{idProduct}=="0001", MODE="0666"' \
-    | sudo tee /etc/udev/rules.d/99-hikcamera.rules
-  sudo udevadm control --reload-rules && sudo udevadm trigger
-  ```
-
-- **MVS SDK 未找到**：设置环境变量 `MVS_SDK_ROOT` 或 CMake 参数 `-DMVS_SDK_ROOT=/path/to/MVS`。
+- `vendor` 模式要求 `src/sdk/include` 和 `src/sdk/lib` 完整存在；缺失时会直接报错
+- `system` 模式要求 `MVS_SDK_ROOT` 或 `/opt/MVS` 下存在 `include/MvCameraControl.h` 和 `lib/64/libMvCameraControl.so`
+- 运行时动态库搜索路径、环境注入和上层 RPATH 策略由集成仓库负责

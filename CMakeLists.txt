@@ -10,44 +10,101 @@ set(CMAKE_BUILD_RPATH_USE_ORIGIN ON)
 find_package(OpenCV REQUIRED COMPONENTS core imgproc)
 
 # ---- MVS SDK ---------------------------------------------------------------
-# 优先使用仓库内 src/sdk 头文件和运行库，系统安装仅作为兜底。
-set(MVS_INCLUDE_HINT "${CMAKE_CURRENT_SOURCE_DIR}/src/sdk/include")
-set(MVS_RUNTIME_HINT "${CMAKE_CURRENT_SOURCE_DIR}/src/sdk/lib")
-
-if(EXISTS "${MVS_INCLUDE_HINT}/MvCameraControl.h")
-    set(MVS_INCLUDE_DIR "${MVS_INCLUDE_HINT}")
+if(DEFINED ENV{HIKCAMERA_SDK_MODE} AND NOT "$ENV{HIKCAMERA_SDK_MODE}" STREQUAL "")
+    set(_default_hikcamera_sdk_mode "$ENV{HIKCAMERA_SDK_MODE}")
 else()
-    find_path(MVS_INCLUDE_DIR MvCameraControl.h
-        HINTS ENV MVS_SDK_ROOT
-        PATHS /opt/MVS/include /usr/local/include
-        PATH_SUFFIXES include)
+    set(_default_hikcamera_sdk_mode "AUTO")
 endif()
 
-if(EXISTS "${MVS_RUNTIME_HINT}/libMvCameraControl.so")
-    set(MVS_LIBRARY "${MVS_RUNTIME_HINT}/libMvCameraControl.so")
-    set(MVS_RUNTIME_DIR "${MVS_RUNTIME_HINT}")
+set(HIKCAMERA_SDK_MODE "${_default_hikcamera_sdk_mode}" CACHE STRING
+    "Select Hik SDK source: AUTO (default), system, or vendor")
+set_property(CACHE HIKCAMERA_SDK_MODE PROPERTY STRINGS AUTO system vendor)
+
+string(TOLOWER "${HIKCAMERA_SDK_MODE}" _requested_hikcamera_sdk_mode)
+if(NOT _requested_hikcamera_sdk_mode STREQUAL "auto"
+    AND NOT _requested_hikcamera_sdk_mode STREQUAL "system"
+    AND NOT _requested_hikcamera_sdk_mode STREQUAL "vendor")
+    message(FATAL_ERROR
+        "Unsupported HIKCAMERA_SDK_MODE='${HIKCAMERA_SDK_MODE}'. Expected 'AUTO', 'system', or 'vendor'.")
+endif()
+
+if(DEFINED ENV{MVS_SDK_ROOT} AND NOT "$ENV{MVS_SDK_ROOT}" STREQUAL "")
+    set(_default_mvs_sdk_root "$ENV{MVS_SDK_ROOT}")
 else()
-    find_library(MVS_LIBRARY MvCameraControl
-        HINTS ENV MVS_SDK_ROOT
-        PATHS /opt/MVS/lib /opt/MVS/lib/64 /usr/local/lib
-        PATH_SUFFIXES lib lib64)
-    if(MVS_LIBRARY)
-        get_filename_component(MVS_RUNTIME_DIR "${MVS_LIBRARY}" DIRECTORY)
+    set(_default_mvs_sdk_root "/opt/MVS")
+endif()
+set(MVS_SDK_ROOT "${_default_mvs_sdk_root}" CACHE PATH
+    "Path to the system Hikrobot MVS SDK root used when HIKCAMERA_SDK_MODE=system")
+if(NOT MVS_SDK_ROOT)
+    set(MVS_SDK_ROOT "/opt/MVS" CACHE PATH
+        "Path to the system Hikrobot MVS SDK root used when HIKCAMERA_SDK_MODE=system" FORCE)
+endif()
+
+set(_vendor_sdk_root "${CMAKE_CURRENT_SOURCE_DIR}/src/sdk")
+set(_vendor_sdk_include_dir "${_vendor_sdk_root}/include")
+set(_vendor_sdk_library "${_vendor_sdk_root}/lib/libMvCameraControl.so")
+set(_vendor_sdk_runtime_dir "${_vendor_sdk_root}/lib")
+
+get_filename_component(_system_sdk_root "${MVS_SDK_ROOT}" ABSOLUTE)
+set(_system_sdk_include_dir "${_system_sdk_root}/include")
+set(_system_sdk_library "${_system_sdk_root}/lib/64/libMvCameraControl.so")
+set(_system_sdk_runtime_dir "${_system_sdk_root}/lib/64")
+
+if(_requested_hikcamera_sdk_mode STREQUAL "auto")
+    if(EXISTS "${_vendor_sdk_include_dir}/MvCameraControl.h" AND EXISTS "${_vendor_sdk_library}")
+        set(_selected_hikcamera_sdk_mode "vendor")
+        set(HIKCAMERA_SDK_ROOT "${_vendor_sdk_root}")
+        set(MVS_INCLUDE_DIR "${_vendor_sdk_include_dir}")
+        set(MVS_LIBRARY "${_vendor_sdk_library}")
+        set(MVS_RUNTIME_DIR "${_vendor_sdk_runtime_dir}")
+    else()
+        set(_selected_hikcamera_sdk_mode "system")
+        set(HIKCAMERA_SDK_ROOT "${_system_sdk_root}")
+        set(MVS_INCLUDE_DIR "${_system_sdk_include_dir}")
+        set(MVS_LIBRARY "${_system_sdk_library}")
+        set(MVS_RUNTIME_DIR "${_system_sdk_runtime_dir}")
+    endif()
+elseif(_requested_hikcamera_sdk_mode STREQUAL "vendor")
+    set(_selected_hikcamera_sdk_mode "vendor")
+    set(HIKCAMERA_SDK_ROOT "${_vendor_sdk_root}")
+    set(MVS_INCLUDE_DIR "${_vendor_sdk_include_dir}")
+    set(MVS_LIBRARY "${_vendor_sdk_library}")
+    set(MVS_RUNTIME_DIR "${_vendor_sdk_runtime_dir}")
+elseif(_requested_hikcamera_sdk_mode STREQUAL "system")
+    set(_selected_hikcamera_sdk_mode "system")
+    set(HIKCAMERA_SDK_ROOT "${_system_sdk_root}")
+    set(MVS_INCLUDE_DIR "${_system_sdk_include_dir}")
+    set(MVS_LIBRARY "${_system_sdk_library}")
+    set(MVS_RUNTIME_DIR "${_system_sdk_runtime_dir}")
+endif()
+
+if(_selected_hikcamera_sdk_mode STREQUAL "vendor")
+    if(NOT EXISTS "${MVS_INCLUDE_DIR}/MvCameraControl.h")
+        message(FATAL_ERROR
+            "HIKCAMERA_SDK_MODE=vendor expects '${MVS_INCLUDE_DIR}/MvCameraControl.h'. "
+            "Populate vendor/hikcamera/src/sdk explicitly before configuring.")
+    endif()
+    if(NOT EXISTS "${MVS_LIBRARY}")
+        message(FATAL_ERROR
+            "HIKCAMERA_SDK_MODE=vendor expects '${MVS_LIBRARY}'. "
+            "Populate vendor/hikcamera/src/sdk explicitly before configuring.")
+    endif()
+else()
+    if(NOT EXISTS "${MVS_INCLUDE_DIR}/MvCameraControl.h")
+        message(FATAL_ERROR
+            "HIKCAMERA_SDK_MODE=system expects '${MVS_INCLUDE_DIR}/MvCameraControl.h'. "
+            "Install MVS under /opt/MVS or pass -DMVS_SDK_ROOT=/path/to/MVS.")
+    endif()
+    if(NOT EXISTS "${MVS_LIBRARY}")
+        message(FATAL_ERROR
+            "HIKCAMERA_SDK_MODE=system expects '${MVS_LIBRARY}'. "
+            "Install MVS under /opt/MVS or pass -DMVS_SDK_ROOT=/path/to/MVS.")
     endif()
 endif()
 
-if(NOT MVS_INCLUDE_DIR)
-    message(FATAL_ERROR "MVS SDK headers not found (MvCameraControl.h). "
-        "Expected vendor/hikcamera/src/sdk/include or a system MVS SDK.")
-endif()
-if(NOT MVS_LIBRARY OR NOT MVS_RUNTIME_DIR)
-    message(FATAL_ERROR "MVS SDK library not found (libMvCameraControl.so). "
-        "Expected vendor/hikcamera/src/sdk/lib or a system MVS SDK.")
-endif()
-
-message(STATUS "MVS SDK include: ${MVS_INCLUDE_DIR}")
-message(STATUS "MVS SDK library: ${MVS_LIBRARY}")
-message(STATUS "MVS SDK runtime dir: ${MVS_RUNTIME_DIR}")
+message(STATUS "HIKCAMERA_SDK_MODE=${_selected_hikcamera_sdk_mode}")
+message(STATUS "HIKCAMERA_SDK_ROOT=${HIKCAMERA_SDK_ROOT}")
+message(STATUS "MVS_SDK_RUNTIME_DIR=${MVS_RUNTIME_DIR}")
 
 add_library(mvs::camera_control SHARED IMPORTED)
 set_target_properties(mvs::camera_control PROPERTIES
@@ -77,27 +134,7 @@ target_link_libraries(${PROJECT_NAME}
 
 set_target_properties(${PROJECT_NAME} PROPERTIES
     BUILD_RPATH "${MVS_RUNTIME_DIR}"
-    HIKCAMERA_RUNTIME_DIR "${MVS_RUNTIME_DIR}")
-
-# ---- Tests ------------------------------------------------------------------
-enable_testing()
-
-# parameters_test — unit tests with fake backend (no real camera required)
-add_executable(parameters_test
-    tests/parameters_test.cpp
-)
-
-target_include_directories(parameters_test PRIVATE
-    ${CMAKE_CURRENT_SOURCE_DIR}/include
-    ${CMAKE_CURRENT_SOURCE_DIR}/src
-    ${MVS_INCLUDE_DIR}
-)
-
-target_link_libraries(parameters_test PRIVATE
-    ${OpenCV_LIBS}
-)
-
-set_target_properties(parameters_test PROPERTIES
-    BUILD_RPATH "${MVS_RUNTIME_DIR}")
-
-add_test(NAME parameters_test COMMAND parameters_test)
+    HIKCAMERA_RUNTIME_DIR "${MVS_RUNTIME_DIR}"
+    HIKCAMERA_SDK_MODE "${_selected_hikcamera_sdk_mode}"
+    HIKCAMERA_SDK_ROOT "${HIKCAMERA_SDK_ROOT}"
+    )

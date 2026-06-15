@@ -6,7 +6,6 @@
 
 #include <cstring>
 #include <expected>
-#include <filesystem>
 #include <map>
 #include <mutex>
 
@@ -96,14 +95,7 @@ struct Camera::Impl final {
     // Live override cache: after successful set(), cached here; replayed on reconnect()
     std::map<param_id, param_value> live_overrides_;
 
-    ~Impl() noexcept {
-        std::ignore = disconnect();
-        try {
-            std::filesystem::remove_all("./MvSdkLog");
-            std::filesystem::remove_all("./MvFGSdkLog");
-            std::filesystem::remove_all("./$(ALLUSERSPROFILE)");
-        } catch (...) {}
-    }
+    ~Impl() noexcept { std::ignore = disconnect(); }
 
     auto read_image() noexcept -> std::expected<cv::Mat, std::string> {
         std::lock_guard lock{mtx_};
