@@ -67,7 +67,7 @@ extern "C" {
 
 /** 
  *   @~chinese
- *     该头文件主要包含13部分：
+ *     该头文件主要包含14部分：
  *     0.回调函数定义
  *     1.SDK初始化
  *     2.相机的配置(枚举/打开/关闭）和取流接口
@@ -75,15 +75,16 @@ extern "C" {
  *     4.相机/采集卡属性万能配置接口&读写寄存器接口
  *     5.相机/采集卡 升级
  *     6.相机和采集卡 注册异常回调和事件接口
- *     7.仅GigE设备支持的接口
+ *     7.仅GigE Vision设备支持的接口
  *     8.仅CameraLink 设备支持的接口
- *     9.仅U3V设备支持的接口
+ *     9.仅USB3 Vision设备支持的接口
  *     10.GenTL相关接口
  *     11.图像保存、格式转换等相关接口
  *     12.适用于支持串口通信的设备接口
+ *     13.适用于支持液态镜头的设备接口
 
  *   @~english
- *     This header file mainly includes 13 sections:
+ *     This header file mainly includes 14 sections:
  *     0.Callback function definition
  *     1.SDK initialization
  *     2.Camera configuration (enumeration/open/close) and streaming API
@@ -91,12 +92,13 @@ extern "C" {
  *     4.Universal property configuration API & register read/write API for cameras/frame grabbers
  *     5.Firmware upgrade for cameras/frame grabbers
  *     6.Exception callback registration and event API for cameras and frame grabbers
- *     7.API exclusively for GigE devices
+ *     7.API exclusively for GigE Vision devices
  *     8.API exclusively for CameraLink devices
  *     9.API exclusively for USB3 Vision (U3V) devices
  *     10.GenTL-related API
  *     11.Image saving and format conversion API
  *     12.API for devices supporting serial communication
+ *     13.API for devices supporting liquid lens
 **/
 
 
@@ -178,6 +180,31 @@ typedef void(__stdcall *MvStreamExceptionCallback)(MV_CC_STREAM_EXCEPTION_INFO* 
 *****************************************************************************/
 typedef void(__stdcall *MvExceptionCallback)(unsigned int nMsgType, void *pUser);
 
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  液态镜头正常消息回调
+ *  @param  pLiquidLensMsg              [OUT]           液态镜头上传的消息
+ *  @param  pUser                       [OUT]           用户自定义变量
+
+ *  @~english
+ *  @brief  Liquid lens normal message callback function.
+ *  @param  pLiquidLensMsg              [OUT]           It refers to the uploaded message of liquid lens uploaded.
+ *  @param  pUser                       [OUT]           It refers to the user-defined variable. 
+*****************************************************************************/
+typedef void(__stdcall *MvLiquidLensMsgCallback)(MV_CC_LIQUIDLENS_MSG* pLiquidLensMsg, void* pUser);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  液态镜头异常消息回调
+ *  @param  pLiquidLensMsg              [OUT]           液态镜头上传的消息
+ *  @param  pUser                       [OUT]           用户自定义变量
+
+ *  @~english
+ *  @brief  Liquid lens exception message callback function. 
+ *  @param  pLiquidLensMsg              [OUT]           It refers to the uploaded message of liquid lens uploaded.
+ *  @param  pUser                       [OUT]           It refers to the user-defined variable. 
+*****************************************************************************/
+typedef void(__stdcall *MvLiquidLensExceptionCallback)(MV_CC_LIQUIDLENS_EXCEPTION_MSG* pLiquidLensMsg, void* pUser);
 /// @}
 
 /**************************Part1 ch: SDK 初始化 | en: SDK Initialization ******************************************/
@@ -249,12 +276,12 @@ MV_CAMCTRL_API unsigned int __stdcall MV_CC_GetSDKVersion();
                 | 传输层协议类型定义 | 值 | 说明 |
                 | :--- | :---: | :--- | 
                 | \ref MV_UNKNOW_DEVICE | 0x00000000 | 未知设备类型 |
-                | \ref MV_GIGE_DEVICE | 0x00000001 | GigE设备 |
+                | \ref MV_GIGE_DEVICE | 0x00000001 | GigE Vision设备 |
                 | \ref MV_1394_DEVICE | 0x00000002 | 1394-a/b设备 |
-                | \ref MV_USB_DEVICE | 0x00000004 | USB设备 |
-                | \ref MV_CAMERALINK_DEVICE | 0x00000008 | 串口设备，包含Camera Link设备和串口视觉控制器 |
-                | \ref MV_VIR_GIGE_DEVICE | 0x00000010 | 虚拟GigE设备 |
-                | \ref MV_VIR_USB_DEVICE | 0x00000020 | 虚拟USB设备 |
+                | \ref MV_USB_DEVICE | 0x00000004 | USB3 Vision设备 |
+                | \ref MV_CAMERALINK_DEVICE | 0x00000008 | 串口设备，包含Camera Link设备和串口光源控制器 |
+                | \ref MV_VIR_GIGE_DEVICE | 0x00000010 | 虚拟GigE Vision设备 |
+                | \ref MV_VIR_USB_DEVICE | 0x00000020 | 虚拟USB3 Vision设备 |
                 | \ref MV_GENTL_GIGE_DEVICE | 0x00000040 | 自研网卡下GigE设备 |
                 | \ref MV_GENTL_CAMERALINK_DEVICE | 0x00000080 | CameraLink设备 |
                 | \ref MV_GENTL_CXP_DEVICE | 0x00000100 | CoaXPress设备 |
@@ -263,8 +290,9 @@ MV_CAMCTRL_API unsigned int __stdcall MV_CC_GetSDKVersion();
  *  @param  pstDevList                  [IN][OUT]       设备列表
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
  *  @remarks \li 设备列表的内存是在SDK内部分配的，多线程调用该接口时会进行设备列表内存的释放和申请，建议尽量避免多线程枚举操作。\n
- *           \li 参数枚举传输层，适配传入MV_GIGE_DEVICE、MV_1394_DEVICE、MV_USB_DEVICE、MV_CAMERALINK_DEVICE；MV_GIGE_DEVICE该参数传出所有GiGE相关的设备信息（包含虚拟GiGE和GenTL下的GiGE设备），MV_USB_DEVICE该参数传出所有USB设备，包含虚拟USB设备。\n
-
+ *           \li 参数枚举传输层，适配传入MV_GIGE_DEVICE、MV_1394_DEVICE、MV_USB_DEVICE、MV_CAMERALINK_DEVICE；MV_GIGE_DEVICE该参数传出所有GiGE相关的设备信息（包含虚拟GiGE和GenTL下的GiGE设备），MV_USB_DEVICE该参数传出所有USB3 Vision设备，包含虚拟USB3 Vision设备。\n
+ *           \li GE1104 采集卡下的相机仅支持通过MV_GIGE_DEVICE类型枚举，不支持使用MV_GENTL_GIGE_DEVICE。
+ 
  *  @~english
  *  @brief  Enumerates devices, including cameras connected to frame grabbers.
  *  @param  nTLayerType                 [IN]            It refers to the transport layer protocol type. For more details, refer to CameraParams.h. for example, #define MV_GIGE_DEVICE 0x00000001
@@ -274,6 +302,7 @@ MV_CAMCTRL_API unsigned int __stdcall MV_CC_GetSDKVersion();
              It is recommended to avoid multithreaded enumeration operations.
  *  @remarks For the parameter nTLayerType, the following parameters are supported: MV_GIGE_DEVICE, MV_1394_DEVICE, MV_USB_DEVICE, and MV_CAMERALINK_DEVICE. 
              MV_GIGE_DEVICE sends out information of all GigE devices (including virtual GigE devices and GigE devices of GenTL), and MV_USB_DEVICE sends out information of USB devices (including virtual USB devices).
+ *  @remarks Cameras under the GE1104 frame grabber can only be enumerated via MV_GIGE_DEVICE; MV_GENTL_GIGE_DEVICE is not supported.
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_EnumDevices(IN unsigned int nTLayerType, IN OUT MV_CC_DEVICE_INFO_LIST* pstDevList);
 
@@ -284,12 +313,12 @@ MV_CAMCTRL_API int __stdcall MV_CC_EnumDevices(IN unsigned int nTLayerType, IN O
             | 传输层协议类型定义 | 值 | 说明 |
             | :--- | :---: | :--- | 
             | \ref MV_UNKNOW_DEVICE | 0x00000000 | 未知设备类型 |
-            | \ref MV_GIGE_DEVICE | 0x00000001 | GigE设备 |
+            | \ref MV_GIGE_DEVICE | 0x00000001 | GigE Vision设备 |
             | \ref MV_1394_DEVICE | 0x00000002 | 1394-a/b设备 |
-            | \ref MV_USB_DEVICE | 0x00000004 | USB设备 |
-            | \ref MV_CAMERALINK_DEVICE | 0x00000008 | 串口设备，包含Camera Link设备和串口视觉控制器 |
-            | \ref MV_VIR_GIGE_DEVICE | 0x00000010 | 虚拟GigE设备 |
-            | \ref MV_VIR_USB_DEVICE | 0x00000020 | 虚拟USB设备 |
+            | \ref MV_USB_DEVICE | 0x00000004 | USB3 Vision设备 |
+            | \ref MV_CAMERALINK_DEVICE | 0x00000008 | 串口设备，包含Camera Link设备和串口光源控制器 |
+            | \ref MV_VIR_GIGE_DEVICE | 0x00000010 | 虚拟GigE Vision设备 |
+            | \ref MV_VIR_USB_DEVICE | 0x00000020 | 虚拟USB3 Vision设备 |
             | \ref MV_GENTL_GIGE_DEVICE | 0x00000040 | 自研网卡下GigE设备 |
             | \ref MV_GENTL_CAMERALINK_DEVICE | 0x00000080 | CameraLink设备 |
             | \ref MV_GENTL_CXP_DEVICE | 0x00000100 | CoaXPress设备 |
@@ -298,9 +327,10 @@ MV_CAMCTRL_API int __stdcall MV_CC_EnumDevices(IN unsigned int nTLayerType, IN O
  *  @param  pstDevList                  [IN][OUT]       设备列表
  *  @param  strManufacturerName         [IN]            厂商名字
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
- *  @remarks \li 参数枚举传输层，适配传入MV_GIGE_DEVICE、MV_1394_DEVICE、MV_USB_DEVICE、MV_CAMERALINK_DEVICE；MV_GIGE_DEVICE该参数传出所有GiGE相关的设备信息（包含虚拟GiGE和GenTL下的GiGE设备），MV_USB_DEVICE该参数传出所有USB设备，包含虚拟USB设备。\n
+ *  @remarks \li 参数枚举传输层，适配传入MV_GIGE_DEVICE、MV_1394_DEVICE、MV_USB_DEVICE、MV_CAMERALINK_DEVICE；MV_GIGE_DEVICE该参数传出所有GigE Vision相关的设备信息（包含虚拟GigE Vision和GenTL下的GigE Vision设备），MV_USB_DEVICE该参数传出所有USB3 Vision设备，包含虚拟USB3 Vision设备。\n
  *           \li 设备列表的内存是在SDK内部分配的，多线程调用该接口时会进行设备列表内存的释放和申请,建议尽量避免多线程枚举操作。\n
  *           \li MV_GENTL_GIGE_DEVICE、MV_GENTL_CAMERALINK_DEVICE、MV_GENTL_CXP_DEVICE、MV_GENTL_XOF_DEVICE传输层可以返回对采集卡下的相机信息。
+ *           \li GE1104 采集卡下的相机仅支持通过MV_GIGE_DEVICE类型枚举，不支持使用MV_GENTL_GIGE_DEVICE。
 
  *  @~english
  *  @brief  Enumerates devices according to manufacturers.
@@ -312,6 +342,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_EnumDevices(IN unsigned int nTLayerType, IN O
              MV_GIGE_DEVICE sends out information of all GigE devices (including virtual GigE devices and GigE devices of GenTL), and MV_USB_DEVICE sends out information of USB devices (including virtual USB devices).
  *  @remarks The memory of device list is internally allocated. When this API is called in multiple threads, the SDK will release and apply for the device list memory. 
              It is recommended to avoid multithreaded enumeration operations.
+ *  @remarks Cameras under the GE1104 frame grabber can only be enumerated via MV_GIGE_DEVICE; MV_GENTL_GIGE_DEVICE is not supported.
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_EnumDevicesEx(IN unsigned int nTLayerType, IN OUT MV_CC_DEVICE_INFO_LIST* pstDevList, IN const char* strManufacturerName);
 
@@ -325,10 +356,10 @@ MV_CAMCTRL_API int __stdcall MV_CC_EnumDevicesEx(IN unsigned int nTLayerType, IN
             | \ref MV_UNKNOW_DEVICE | 0x00000000 | 未知设备类型 |
             | \ref MV_GIGE_DEVICE | 0x00000001 | GigE设备 |
             | \ref MV_1394_DEVICE | 0x00000002 | 1394-a/b设备 |
-            | \ref MV_USB_DEVICE | 0x00000004 | USB设备 |
-            | \ref MV_CAMERALINK_DEVICE | 0x00000008 | 串口设备，包含Camera Link设备和串口视觉控制器 |
+            | \ref MV_USB_DEVICE | 0x00000004 | USB3 Vision设备 |
+            | \ref MV_CAMERALINK_DEVICE | 0x00000008 | 串口设备，包含Camera Link设备和串口光源控制器 |
             | \ref MV_VIR_GIGE_DEVICE | 0x00000010 | 虚拟GigE设备 |
-            | \ref MV_VIR_USB_DEVICE | 0x00000020 | 虚拟USB设备 |
+            | \ref MV_VIR_USB_DEVICE | 0x00000020 | 虚拟USB3 Vision设备 |
             | \ref MV_GENTL_GIGE_DEVICE | 0x00000040 | 自研网卡下GigE设备 |
             | \ref MV_GENTL_CAMERALINK_DEVICE | 0x00000080 | CameraLink设备 |
             | \ref MV_GENTL_CXP_DEVICE | 0x00000100 | CoaXPress设备 |
@@ -345,7 +376,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_EnumDevicesEx(IN unsigned int nTLayerType, IN
             \li  MV_CC_EnumDevicesEx() 传入MV_GIGE_DEVICE，除了枚举网段内的网口相机以外，还会枚举虚拟网口相机和自研采集卡下的网口相机；若传入MV_USB_DEVICE，则会枚举USB口相机和虚拟USB口相机。\n
             \li MV_CC_EnumDevicesEx2() 传入MV_GIGE_DEVICE，仅枚举网段内的网口相机；若传入MV_USB_DEVICE，则仅枚举USB口相机。\n
             \li  MV_CC_EnumDevicesEx2() 多出排序的功能，由参数MV_SORT_METHOD enSortMethod决定排序方式。
- 
+            \li GE1104 采集卡下的相机仅支持通过MV_GIGE_DEVICE类型枚举，不支持使用MV_GENTL_GIGE_DEVICE。
 
  *  @~english
  *  @brief  Enumerates devices, supporting enumerating devices by specified sorting method and filtering by manufacturer name. 
@@ -358,6 +389,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_EnumDevicesEx(IN unsigned int nTLayerType, IN
              It is recommended to avoid multithreaded enumeration operations.
              strManufacturerName can be set to NULL, which indicates enumerating all devices according to the specified sorting type; 
              if not set to NULL, the sorted device list of specified manufacturers will be returned.
+             Cameras under the GE1104 frame grabber can only be enumerated via MV_GIGE_DEVICE; MV_GENTL_GIGE_DEVICE is not supported.
 
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_EnumDevicesEx2(IN unsigned int nTLayerType, IN OUT MV_CC_DEVICE_INFO_LIST* pstDevList, IN const char* strManufacturerName, IN MV_SORT_METHOD enSortMethod);
@@ -395,11 +427,11 @@ MV_CAMCTRL_API int __stdcall MV_CC_EnumDevicesByInterface(IN void* handle, OUT M
                 | \ref MV_ACCESS_ControlSwitchEnableWithKey | 6 | 可以从5模式下抢占权限，然后以可被抢占的控制权限打开 |
                 | \ref MV_ACCESS_Monitor | 7 | 读模式打开设备，适用于控制权限下 |
  *  @return 若设备可达，返回true；若设备不可达，返回false。
- *  @remarks \li GigE相机: 读取设备CCP寄存器的值，判断当前状态是否具有某种访问权限。\n
+ *  @remarks \li GigE Vision相机: 读取设备CCP寄存器的值，判断当前状态是否具有某种访问权限。\n
              如果设备(MV_GENTL_GIGE_DEVICE/MV_GENTL_GIGE_DEVICE)不支持MV_ACCESS_ExclusiveWithSwitch、MV_ACCESS_ControlWithSwitch、MV_ACCESS_ControlSwitchEnable、MV_ACCESS_ControlSwitchEnableWithKey这四种模式，接口返回false。（目前设备不支持这4种抢占模式，国际上主流的厂商的设备也都暂不支持这4种模式。）
-             \li MV_GIGE_DEVICE/MV_GENTL_GIGE_DEVICE 类型设备：按照nAccessMode，返回当前是否可以被连接;
+             \li GigE Vision/GenTL 类型设备：按照nAccessMode，返回当前是否可以被连接;
              @note
-             \li 该接口支持虚拟相机，U3V相机，CXP, XoF, CameraLink采集卡相机, nAccessMode无效，如果相机没有被连接返回true， 如果设备被第三方连接，则返回false
+             \li 该接口支持虚拟相机，USB3 Vision相机，CXP, XoF, CameraLink采集卡相机, nAccessMode无效，如果相机没有被连接返回true， 如果设备被第三方连接，则返回false
              \li 该接口不支持CameraLink设备(返回false)
  *  @~english
  *  @brief  Checks if the specified device can be accessed. 
@@ -408,7 +440,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_EnumDevicesByInterface(IN void* handle, OUT M
  *  @return Returns true for accessible status, and false for inaccessible status.
  *  @remarks You can read the device CCP register value to check the current access permission. 
              Return false if the device(MV_GENTL_GIGE_DEVICE/MV_GENTL_GIGE_DEVICE)  does not support the modes MV_ACCESS_ExclusiveWithSwitch, MV_ACCESS_ControlWithSwitch, MV_ACCESS_ControlSwitchEnable and MV_ACCESS_ControlSwitchEnableWithKey. Currently, the device does not support the 4 modes, neither do the devices from other mainstream manufacturers. 
-             This API supports virtual cameras, U3V cameras, CoaXPress (CXP), XoF, and CameraLink frame grabber cameras. The nAccessMode parameter has no actual effect. It returns true if the camera is not connected, and false if the device is occupied by a third party.
+             This API supports virtual cameras, USB3 Vision cameras, CoaXPress (CXP), XoF, and CameraLink frame grabber cameras. The nAccessMode parameter has no actual effect. It returns true if the camera is not connected, and false if the device is occupied by a third party.
              This API does not support CameraLink devices (returns false).
  **************************************************************************/
 MV_CAMCTRL_API bool __stdcall MV_CC_IsDeviceAccessible(IN MV_CC_DEVICE_INFO* pstDevInfo, IN unsigned int nAccessMode);
@@ -446,12 +478,12 @@ MV_CAMCTRL_API int __stdcall MV_CC_CreateHandle(IN OUT void ** handle, IN const 
                 | \ref MV_ACCESS_ControlSwitchEnable | 5 | 以可被抢占的控制权限打开 |
                 | \ref MV_ACCESS_ControlSwitchEnableWithKey | 6 | 可以从5模式下抢占权限，然后以可被抢占的控制权限打开 |
                 | \ref MV_ACCESS_Monitor | 7 | 读模式打开设备，适用于控制权限下 |
- *  @param  nSwitchoverKey              [IN]            切换访问权限时的密钥                                                        （仅对 MV_GIGE_DEVICE 类型的设备有效）
+ *  @param  nSwitchoverKey              [IN]            切换访问权限时的密钥                                                        （仅对 GigE Vision 类型的设备有效）
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
  *  @remarks 根据设置的设备参数，找到对应的设备，连接设备, 调用接口时可不传入nAccessMode和nSwitchoverKey，此时默认设备访问模式为独占权限。\n
-            \li MV_GIGE_DEVICE 类型设备，目前相机固件暂不支持MV_ACCESS_ExclusiveWithSwitch、MV_ACCESS_ControlWithSwitch、MV_ACCESS_ControlSwitchEnable、MV_ACCESS_ControlSwitchEnableWithKey这四种抢占模式, 可通过SDK接口设置。\n
+            \li GigE Vision 类型设备，目前相机固件暂不支持MV_ACCESS_ExclusiveWithSwitch、MV_ACCESS_ControlWithSwitch、MV_ACCESS_ControlSwitchEnable、MV_ACCESS_ControlSwitchEnableWithKey这四种抢占模式, 可通过SDK接口设置。\n
             \li MV_GENTL_GIGE_DEVICE 设备只支持 nAccessMode 是 MV_ACCESS_Exclusive 、MV_ACCESS_Control 、MV_ACCESS_Monitor权限。\n
-            \li 对于U3V设备，CXP，Cameralink(MV_CAMERALINK_DEVICE、MV_GENTL_CAMERALINK_DEVICE)，XoF设备，虚拟GEV，虚拟U3V设备：nAccessMode、nSwitchoverKey这两个参数无效； 默认以控制权限打开设备。\n
+            \li 对于USB3 Vision设备，CXP，Cameralink(MV_CAMERALINK_DEVICE、MV_GENTL_CAMERALINK_DEVICE)，XoF设备，虚拟GigE Vision，虚拟USB3 Vision设备：nAccessMode、nSwitchoverKey这两个参数无效； 默认以控制权限打开设备。\n
             \li 该接口支持网口设备不枚举直接打开，不支持U口和GenTL设备不枚举打开设备。\n
 
   *  @~english
@@ -464,7 +496,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_CreateHandle(IN OUT void ** handle, IN const 
               The parameters nAccessMode and nSwitchoverKey are optional, and the device access mode is exclusive permission by default. 
               For GigE devices, the camera firmware does not support the following preemption modes: MV_ACCESS_ExclusiveWithSwitch, MV_ACCESS_ControlWithSwitch, MV_ACCESS_ControlSwitchEnable, and MV_ACCESS_ControlSwitchEnableWithKey.
               For GenTL devices, the camera firmware only supports the following modes: MV_ACCESS_Exclusive, MV_ACCESS_Control, and MV_ACCESS_Monitor. 
-              For U3V, CXP, camera link, XoF, virtual GEV, and virtual U3V devices, the parameters nAccessMode and nSwitchoverKey are invalid, and the device is opened with control permission via MV_ACCESS_Control by default. 
+              For USB3 Vision, CXP, camera link, XoF, virtual GEV, and virtual USB3 Vision devices, the parameters nAccessMode and nSwitchoverKey are invalid, and the device is opened with control permission via MV_ACCESS_Control by default. 
               This API allows turning on GigE devices without enumeration, but it does not suport turning on USB or GenTL devices without enumeration. 
  ************************************************************************/
 #ifndef __cplusplus
@@ -492,7 +524,7 @@ MV_CAMCTRL_API bool __stdcall MV_CC_IsDeviceConnected(IN void* handle);
  *  @param  handle                      [IN]            设备句柄
  *  @param  pstDevInfo                  [IN][OUT]       返回给调用者有关设备信息结构体指针
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks \li 支持用户在打开设备后获取设备信息，不支持GenTL设备。 \n
+ *  @remarks \li 支持用户在打开设备后获取设备信息，不支持通过GenTL设备信息创建的设备。 \n
              \li 若该设备是GigE设备，则调用该接口存在阻塞风险，因此不建议在取流过程中调用该接口。
  
  *  @~english
@@ -500,7 +532,7 @@ MV_CAMCTRL_API bool __stdcall MV_CC_IsDeviceConnected(IN void* handle);
  *  @param  handle                      [IN]            It refers to the device handle. 
  *  @param  pstDevInfo                  [IN][OUT]       It refers to the pointer to device information structure. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
- *  @remarks Call this API after MV_CC_OpenDevice() to get the device information.
+ *  @remarks Call this API after MV_CC_OpenDevice() to get the device information.The API does not support devices created using GenTL device information.
              For a GigE device, there is a blocking risk when calling the API, so it is not recommended to call the API during image grabbing. 
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_GetDeviceInfo(IN void * handle, IN OUT MV_CC_DEVICE_INFO* pstDevInfo);
@@ -512,7 +544,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetDeviceInfo(IN void * handle, IN OUT MV_CC_
  *  @param  pstInfo                     [IN][OUT]       返回给调用者有关设备各种类型的信息结构体指针
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
  *  @remarks \li 接口里面输入需要获取的信息类型（指定 MV_ALL_MATCH_INFO 结构体中的nType类型），获取对应的信息（在 MV_ALL_MATCH_INFO 结构体中pInfo里返回）。\n
-            \li 该接口的调用前置条件取决于所获取的信息类型，获取GigE设备的 \ref MV_MATCH_TYPE_NET_DETECT 信息需在开启抓图之后调用，获取U3V设备的 \ref MV_MATCH_TYPE_USB_DETECT 信息需在打开设备之后调用。\n
+            \li 该接口的调用前置条件取决于所获取的信息类型，获取GigE设备的 \ref MV_MATCH_TYPE_NET_DETECT 信息需在开启抓图之后调用，获取USB3 Vision设备的 \ref MV_MATCH_TYPE_USB_DETECT 信息需在打开设备之后调用。\n
             \li 信息类型 MV_MATCH_TYPE_NET_DETECT 对应结构体\ref MV_MATCH_INFO_NET_DETECT ， 只支持MV_GIGE_DEVICE相机/MV_GENTL_GIGE_DEVICE相机。 \n
             \li 信息类型 MV_MATCH_TYPE_USB_DETECT 对应结构体\ref MV_MATCH_INFO_USB_DETECT ， 只支持MV_USB_DEVICE 类型相机。 \n
             @note 该接口不支持MV_CAMERALINK_DEVICE设备。
@@ -523,7 +555,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetDeviceInfo(IN void * handle, IN OUT MV_CC_
  *  @param  pstInfo                     [IN][OUT]       It refers to the pointer to information structure. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
  *  @remarks Input required information type (specify nType in structure MV_ALL_MATCH_INFO ), and get corresponding information (returned via pInfo in structure MV_ALL_MATCH_INFO ).
-             The calling precondition of this API is determined by the required information type. To obtain MV_MATCH_TYPE_NET_DETECT information of GigE devices, this API should be called after image grabbing starts. To obtain MV_MATCH_TYPE_USB_DETECT information of U3V devices, this API should be called after the device is turned on.
+             The calling precondition of this API is determined by the required information type. To obtain MV_MATCH_TYPE_NET_DETECT information of GigE devices, this API should be called after image grabbing starts. To obtain MV_MATCH_TYPE_USB_DETECT information of USB3 Vision devices, this API should be called after the device is turned on.
              The information type MV_MATCH_TYPE_NET_DETECT corresponds to the structure MV_MATCH_INFO_NET_DETECT, which only supports  cameras of  MV_GIGE_DEVICE and MV_GENTL_GIGE_DEVICE types
              The information type MV_MATCH_TYPE_USB_DETECT corresponds to the structure MV_MATCH_INFO_USB_DETECT, which only supports cameras of MV_USB_DEVICE type
              This API is not supported by MV_CAMERALINK_DEVICE device. 
@@ -576,7 +608,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_DestroyHandle(IN void * handle);
  *  @remarks 图像数据采集有两种方式，两种方式不能复用： \n
  *          \li 调用 MV_CC_RegisterImageCallBackEx() 设置图像数据回调函数，然后调用 MV_CC_StartGrabbing() 开始采集，采集的图像数据在设置的回调函数中返回。 \n 
  *          \li 调用 MV_CC_StartGrabbing() 开始采集，然后在应用层循环调用 MV_CC_GetImageBuffer() 和 MV_CC_FreeImageBuffer() 获取指定像素格式的帧数据，获取帧数据时上层应用程序需要根据帧率控制好调用该接口的频率。 \n
-            @note 该接口不支持M MV_CAMERALINK_DEVICE() 的设备。 \n
+            @note 该接口不支持 MV_CAMERALINK_DEVICE() 的设备。 \n
  
  *  @~english
  *  @brief  Registers an image data callback (extended API 1).
@@ -663,8 +695,6 @@ MV_CAMCTRL_API int __stdcall MV_CC_StopGrabbing(IN void* handle);
              \li 该接口与 MV_CC_FreeImageBuffer() 配套使用，当处理完取到的数据后，需要用 MV_CC_FreeImageBuffer() 接口将pstFrame内的数据指针权限进行释放。 \n
              \li 该接口与 MV_CC_GetOneFrameTimeout() 相比，有着更高的效率。且其取流缓存的分配由sdk内部自动分配或者外部注册，而 MV_CC_GetOneFrameTimeout() 接口是需要客户自行分配。\n 
              \li 该接口在调用 MV_CC_Display() 后无法取流。 \n
-             \li 该接口对于U3V、GIGE设备均可支持。 \n
-             \li 该接口不支持CameraLink设备。\n 
  
  *  @~english
  *  @brief  Gets one frame of image. (This API cannot be used with MV_CC_Display() at the same time.) 
@@ -677,8 +707,6 @@ MV_CAMCTRL_API int __stdcall MV_CC_StopGrabbing(IN void* handle);
              This API and MV_CC_FreeImageBuffer should be called in pairs, after processing the acquired data, you should call MV_CC_FreeImageBuffer to release the data pointer permission of pstFrame. 
              This API's image buffer is allocated by the SDK internally or registered externally, it has higher image acquisition efficiency than MV_CC_GetOneFrameTimeout() , whose image buffer needs to be manually allocated by the user. 
              This API cannot be called to grab images after calling MV_CC_Display(). 
-             This API is not supported by MV_CAMERALINK_DEVICE.
-             This API is supported by both USB3 vision camera and GigE camera. 
  *****************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_GetImageBuffer(IN void* handle, IN OUT MV_FRAME_OUT* pstFrame, IN unsigned int nMsec);
 
@@ -690,8 +718,6 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetImageBuffer(IN void* handle, IN OUT MV_FRA
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
  *  @remarks \li 该接口与 MV_CC_GetImageBuffer() 配套使用，使用 MV_CC_GetImageBuffer() 接口取到的图像数据pstFrame，需要用 MV_CC_FreeImageBuffer() 接口进行权限释放。 \n
              \li 该接口对于取流效率高于 MV_CC_GetOneFrameTimeout() 接口，且 MV_CC_GetImageBuffer() 在不进行Free的情况下，最大支持输出的节点数与 MV_CC_SetImageNodeNum() 接口所设置的节点数相等，默认节点数是1。\n 
-             \li 该接口对于U3V、GIGE设备均可支持。 \n
-             \li 该接口不支持CameraLink设备。\n    
  
  *  @~english
  *  @brief  Releases image buffer. (This API is used to release the image buffer that is no longer used, and it is used with MV_CC_GetImageBuffer() in pairs.) 
@@ -700,8 +726,6 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetImageBuffer(IN void* handle, IN OUT MV_FRA
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
  *  @remarks This API and MV_CC_GetImageBuffer() should be called in pairs. After calling MV_CC_GetImageBuffer() to get image data pstFrame, call MV_CC_FreeImageBuffer() to release the permission. 
              This API has higher efficiency of image acquisition than the API MV_CC_GetOneFrameTimeout(). The max. number of nodes that can be outputted by MV_CC_GetImageBuffer()(without freeing the buffer) is the same as the "nNum" set by the API MV_CC_SetImageNodeNum(). 
-             This API is not supported by MV_CAMERALINK_DEVICE.
-             The API is supported by both USB3 vision camera and GigE camera. 
  **********************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_FreeImageBuffer(IN void* handle, IN MV_FRAME_OUT* pstFrame);
 
@@ -715,8 +739,6 @@ MV_CAMCTRL_API int __stdcall MV_CC_FreeImageBuffer(IN void* handle, IN MV_FRAME_
  *  @param  nMsec                       [IN]            等待超时时间
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
  *  @remarks 调用该接口获取图像数据帧之前需要先调用 MV_CC_StartGrabbing() 启动图像采集。该接口为主动式获取帧数据，上层应用程序需要根据帧率，控制好调用该接口的频率。该接口支持设置超时时间，SDK内部等待直到有数据时返回，可以增加取流平稳性，适合用于对平稳性要求较高的场合。\n 
- *  @note   \li 该接口对于U3V、GigE设备均可支持。\n 
-            \li 该接口不支持CameraLink设备。  \n
  
  *  @~english
  *  @brief  Gets one frame of image with timeout, and the SDK waits internally to return until data is available. 
@@ -777,21 +799,19 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetValidImageNum(IN void* handle, IN OUT unsi
  *  @param  nNum                        [IN]            缓存节点个数
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
  *  @remarks \li 调用该接口可以设置SDK内部图像缓存节点个数，在调用 MV_CC_StartGrabbing() 开始抓图前调用。 \n
-            \li 由于不同相机的取流方式不同，在不调用 MV_CC_SetImageNodeNum() 情况下，不同相机的默认缓存节点个数不同。比如双U内部默认分配3个节点。 \n
-            \li SDK实际分配的节点个数 = SDK内部预分配的个数 + 通过调用该接口分配的节点；若系统内存资源不够，SDK内部将重新计算预分配的缓存节点个数，在该情况下，SDK实际分配的节点个数以重新计算的节点个数为准。 \n
-            \li 该接口不支持CameraLink设备。CameraLink设备可以通过GenTL方式连接并设置缓存节点个数。 \n
- 
+             \li 该接口不支持MV_CAMERALINK_DEVICE设备。 \n
+             \li 网口、U口相机会在MV_CC_StartGrabbing时进行内存校验，若系统内存不足，则MV_CC_StartGrabbing返回异常。 \n
+             \li 其他采集卡下相机，MV_CC_StartGrabbing时检测系统内存资源不够，SDK内部将重新计算预分配的缓存节点个数，在该情况下，SDK实际分配的节点个数以重新计算的节点个数为准。
+
  *  @~english
  *  @brief  Sets the number of nodes for SDK internal image buffer. The value is no less than 1, and this API should be called before image grabbing. 
  *  @param  handle                      [IN]            It refers to the device handle. 
  *  @param  nNum                        [IN]            It refers to the number of buffer nodes, which cannot be less than 1. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
  *  @remarks Call this API before MV_CC_StartGrabbing() to set the number of nodes for SDK internal image buffer.
-             Image grabbing methods vary from different camera types. If this API is not called, the default number of buffer nodes will be different. 
-             The number of SDK allocated nodes = the pre-allocated nodes within SDK + the nodes allocated via this API. If the memory allocated by the system is insufficient, the pre-allocated nodes for SDK will be calculated again, and the actual number of allocated nodes will be set to the number of latest pre-allocated nodes.
-             If the system memory resources are insufficient, the SDK will recalculate and use it as the actual number of nodes.
              This API does not support devices of type MV_CAMERALINK_DEVICE
-             This API is only valid for the SDK's internal allocation cache mode, and the external allocation cache mode (i.e., calling MV_CC_RegisterBuffer) is invalid;
+             For cameras with network interface or U port, the SDK will perform a memory check when calling MV_CC_StartGrabbing. If the system memory is insufficient, MV_CC_StartGrabbing will return an exception
+             For cameras using other capture cards, when calling MV_CC_StartGrabbing, the SDK detects that the system memory is insufficient and will internally recalculate the number of pre-allocated buffer nodes. In this case, the actual number of nodes allocated by the Software Development Kit (SDK) will be based on the recalculated number.
  ***********************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_SetImageNodeNum(IN void* handle, IN unsigned int nNum);
 
@@ -805,13 +825,13 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetImageNodeNum(IN void* handle, IN unsigned 
             \li OneByOne：从旧到新一帧一帧的从输出缓存列表中获取图像，打开设备后默认为该策略
             \li LatestImagesOnly：仅从输出缓存列表中获取最新的一帧图像，同时清空输出缓存列表
             \li LatestImages：从输出缓存列表中获取最新的OutputQueueSize帧图像，其中OutputQueueSize范围为1-ImageNodeNum，可用 MV_CC_SetOutputQueueSize() 接口设置，ImageNodeNum默认为1，可用 MV_CC_SetImageNodeNum() 接口设置 OutputQueueSize设置成1等同于LatestImagesOnly策略，OutputQueueSize设置成ImageNodeNum等同于OneByOne策略
-            \li UpcomingImage：在调用取流接口时忽略输出缓存列表中所有图像，并等待设备即将生成的一帧图像。该策略仅支持GigE设备和USB设备
+            \li UpcomingImage：在调用取流接口时忽略输出缓存列表中所有图像，并等待设备即将生成的一帧图像。
             @note
             \li WINDOWS
-            该接口仅支持 \ref MV_GIGE_DEVICE 、 \ref MV_USB_DEVICE 设备。
+            该接口支持 \ref MV_GIGE_DEVICE 、 \ref MV_USB_DEVICE 、 \ref MV_GENTL_GIGE_DEVICE 、 \ref MV_GENTL_CAMERALINK_DEVICE 、 \ref MV_GENTL_CXP_DEVICE 、 \ref MV_GENTL_XOF_DEVICE 设备。
             \endif
             \li LINUX
-            该接口仅支持 \ref MV_USB_DEVICE 设备。
+            该接口支持 \ref MV_USB_DEVICE 、 \ref MV_GENTL_GIGE_DEVICE 、 \ref MV_GENTL_CAMERALINK_DEVICE 、 \ref MV_GENTL_CXP_DEVICE 、 \ref MV_GENTL_XOF_DEVICE 设备。
             \endif
 
  *  @~english
@@ -825,8 +845,10 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetImageNodeNum(IN void* handle, IN unsigned 
                 LatestImages:Gets the latest image of OutputQueueSize frame from the output buffer list. The range of OutputQueueSize is between 1 and ImageNodeNum.
                              If the OutputQueueSize value is set to 1, the strategy is same to LatestImagesOnly, and if the OutputQueueSize value is set to ImageNodeNum, the strategy is same to OneByOne.
                              You can set the OutputQueueSize via API MV_CC_SetOutputQueueSize(), and set the ImageNodeNum via API MV_CC_SetImageNodeNum(). 
-                UpcomingImage:Ignores all images in the output buffer list during calling this API, and waits for the upcoming image generated by the device. This strategy is supported by GigE devices and USB devices only.
-			 This API only support MV_GIGE_DEVICE, MV_USB_DEVICE device on Windows, and only support MV_USB_DEVICE device on Linux.
+                UpcomingImage:Ignores all images in the output buffer list during calling this API, and waits for the upcoming image generated by the device. 
+                Device Types Supported by Windows Platform: MV_GIGE_DEVICE、MV_USB_DEVICE、MV_GENTL_GIGE_DEVICE、MV_GENTL_CAMERALINK_DEVICE、MV_GENTL_CXP_DEVICE、MV_GENTL_XOF_DEVICE.
+                Device Types Supported by Linux Platform: MV_USB_DEVICE、MV_GENTL_GIGE_DEVICE、MV_GENTL_CAMERALINK_DEVICE、MV_GENTL_CXP_DEVICE、MV_GENTL_XOF_DEVICE.
+
  ***********************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_SetGrabStrategy(IN void* handle, IN MV_GRAB_STRATEGY enGrabStrategy);
 
@@ -839,10 +861,10 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetGrabStrategy(IN void* handle, IN MV_GRAB_S
  *  @remarks 该接口需与LatestImages取流策略配套调用，用于设置LatestImages策略下最多允许缓存图像的个数。可以在取流过程中动态调节输出缓存个数。
             @note
             \li WINDOWS
-            该接口仅支持 \ref MV_GIGE_DEVICE 、 \ref MV_USB_DEVICE 设备。
+            该接口支持 \ref MV_GIGE_DEVICE 、 \ref MV_USB_DEVICE 、 \ref MV_GENTL_GIGE_DEVICE 、 \ref MV_GENTL_CAMERALINK_DEVICE 、 \ref MV_GENTL_CXP_DEVICE 、 \ref MV_GENTL_XOF_DEVICE 设备。
             \endif
             \li LINUX
-            该接口仅支持 \ref MV_USB_DEVICE 设备。
+            该接口支持 \ref MV_USB_DEVICE 、 \ref MV_GENTL_GIGE_DEVICE 、 \ref MV_GENTL_CAMERALINK_DEVICE 、 \ref MV_GENTL_CXP_DEVICE 、 \ref MV_GENTL_XOF_DEVICE 设备。
             \endif
 
  *  @~english
@@ -862,7 +884,6 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetOutputQueueSize(IN void* handle, IN unsign
  *  @param  nBufSize                     [IN]            分配内存的长度
  *  @param  nAlignment                   [IN]            内存对齐字节数 (必须是大于0，并且是2的整数次幂)
  *  @return 成功，返回申请内存地址；失败，返回 NULL
- *  @remarks 
 
  *  @~english
  *  @brief  Allocates aligned memory
@@ -890,21 +911,21 @@ MV_CAMCTRL_API int __stdcall MV_CC_FreeAlignedBuffer(IN void* pBuffer);
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  获取设备payload大小（payload包含图像数据和Chunk数据）和内存对其方式，用于SDK外部注册缓存时，应用层分配足够的缓存及正确的内存对齐方式
+ *  @brief  获取设备payload大小（payload包含图像数据和Chunk数据等）和内存对齐方式，用于SDK外部注册缓存时，应用层分配足够的缓存及正确的内存对齐方式
  *  @param  handle                      [IN]            设备句柄
  *  @param  pnPayloadSize               [IN OUT]        负载长度
  *  @param  pnAlignment                 [IN OUT]        负载内存对齐的字节数
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks
+ *  @remarks 获取到的payload大小如果想要改大，需要按照对齐字节数的整数倍增加，否则MV_CC_AllocAlignedBuffer申请的内存可能出现不按要求对齐的情况
 
  *  @~english
- *  @brief  Gets the device payload size (including image data and Chunk data) and memory alignment method. 
+ *  @brief  Gets the device payload size (including image data and Chunk data, and more.) and memory alignment method. 
            It is used by the application layer to allocate sufficient buffer and correct memory alignment when registering external memory for SDK. 
  *  @param  handle                      [IN]            It refers to the device handle. 
  *  @param  pnPayloadSize               [IN OUT]        It refers to the payload size. 
  *  @param  pnAlignment                 [IN OUT]        It refers to alignment bytes.
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
- *  @remarks
+ *  @remarks If you want to increase the size of the obtained payload, it must be increased by an integer multiple of the aligned byte count. Otherwise, the memory allocated by MV_CC_AllocAlignedBuffer may not be aligned as required.
 ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_GetPayloadSize(IN void* handle, IN OUT uint64_t* pnPayloadSize, IN OUT unsigned int* pnAlignment);
 
@@ -943,7 +964,6 @@ MV_CAMCTRL_API int __stdcall MV_CC_RegisterBuffer(IN void* handle, IN void *pBuf
  *  @param  handle                      [IN]            设备句柄
  *  @param  pBuffer                     [IN]            外部内存地址
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 
 
  *  @~english
  *  @brief   Revokes external memory
@@ -999,8 +1019,9 @@ MV_CAMCTRL_API int __stdcall MV_CC_DisplayOneFrameEx(IN void* handle, IN void* h
  *  @param  enRenderMode                [IN]            渲染方式：0-OpenGL
  *  \endif
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks
  *  \if WINDOWS
- *  @remarks 此接口支持4GB以上超大图渲染，调用时需要输入 MV_CC_IMAGE 中 nImageLen 的值。 \n
+ *  此接口支持4GB以上超大图渲染，调用时需要输入 MV_CC_IMAGE 中 nImageLen 的值。 \n
              D3D和OpenGL模式适用于安装显卡驱动且显卡内存大于1GB的电脑，该模式下客户端预览的图像效果会优于GDI模式下的图像效果。渲染模式为D3D时，支持的最大分辨率为16384 * 163840。 \n
              根据图像大小是否超过4GB，该接口可选的渲染模式不同，详情如下：
              \li 若图像大小大于4GB，仅支持使用OpenGL模式渲染图像，并且支持渲染RGB8_Packed，BGR8_Packed和Mono8格式的图像。\n
@@ -1027,7 +1048,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_DisplayOneFrameEx(IN void* handle, IN void* h
  ***********************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_DisplayOneFrameEx2(IN void* handle, IN void* hWnd, IN MV_CC_IMAGE* pstImage, unsigned int enRenderMode);
 
-/// \if WINDOWS
+/// \cond WINDOWS
 
 /********************************************************************//**
  *  @~chinese
@@ -1079,8 +1100,8 @@ MV_CAMCTRL_API int __stdcall MV_CC_DrawCircle(IN void* handle, IN MVCC_CIRCLE_IN
  *  @remarks  This API only supports windows platform.
  ***********************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_DrawLines(IN void* handle, IN MVCC_LINES_INFO* pLinesInfo);
+/// \endcond
 
-/// \endif
 /// @}
 
 /**************************Part3 ch: 采集卡的配置  | en: Frame grabber control ******************************************/
@@ -1576,7 +1597,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_FeatureSave(IN void* handle, IN const char* s
  *  @~chinese
  *  @brief  读内存
  *  @param  handle                      [IN]            设备句柄/采集卡句柄
- *  @param  pBuffer                     [IN][OUT]       作为返回值使用，保存读到的内存值（GEV设备内存值是按照大端模式存储的，采集卡设备和采集卡下相机按照大端存储，其它协议设备按照小端存储）
+ *  @param  pBuffer                     [IN][OUT]       作为返回值使用，保存读到的内存值（GigE Vision设备内存值是按照大端模式存储的，采集卡设备和采集卡下相机按照大端存储，其它协议设备按照小端存储）
  *  @param  nAddress                    [IN]            待读取的内存地址，该地址可以从设备的Camera.xml文件中获取，形如xxx_RegAddr的xml节点值
  *  @param  nLength                     [IN]            待读取的内存长度
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
@@ -1597,7 +1618,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_ReadMemory(IN void* handle , IN OUT void *pBu
  *  @~chinese
  *  @brief  写内存
  *  @param  handle                      [IN]            设备句柄/采集卡句柄
- *  @param  pBuffer                     [IN]            待写入的内存值（注意GEV设备内存值要按照大端模式存储，采集卡设备和采集卡下相机按照大端存储，其它协议设备按照小端存储）
+ *  @param  pBuffer                     [IN]            待写入的内存值（注意GigE Vision设备内存值要按照大端模式存储，采集卡设备和采集卡下相机按照大端存储，其它协议设备按照小端存储）
  *  @param  nAddress                    [IN]            待写入的内存地址，该地址可以从设备的Camera.xml文件中获取，形如xxx_RegAddr的xml节点值
  *  @param  nLength                     [IN]            待写入的内存长度
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
@@ -1920,7 +1941,6 @@ MV_CAMCTRL_API int __stdcall MV_CC_EventNotificationOff(IN void* handle, IN cons
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
  *  @remarks \li 在调用 MV_CC_EnumDevices() 等枚举接口前使用该接口，可设置枚举GIGE设备的网卡最大超时时间（默认100ms），可以减少最大超时时间，以加快枚举GIGE设备的速度。\n
              \li 该接口仅支持输入无符号整数。
- *  @note  该接口仅支持GigEVision设备。
 
  *  @~english
  *  @brief  Sets enumeration timeout duration, range: [1, UINT_MAX). Only GigE protocol is supported. 
@@ -1940,7 +1960,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetEnumDevTimeout(IN unsigned int nMilTimeo
  *  @param  nSubNetMask                 [IN]            子网掩码
  *  @param  nDefaultGateWay             [IN]            默认网关
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks \li 强制设置设备网络参数（包括IP、子网掩码、默认网关），强制设置之后将需要重新创建设备句柄，支持GigEVision(MV_GIGE_DEVICE)设备和GenTL(MV_GENTL_GIGE_DEVICE)设备。 \n
+ *  @remarks \li 强制设置设备网络参数（包括IP、子网掩码、默认网关），强制设置之后将需要重新创建设备句柄，支持 [GigE Vision]( \ref MV_GIGE_DEVICE )设备和 [GenTL]( \ref MV_GENTL_GIGE_DEVICE )设备。 \n
              \li 如果设备为DHCP的状态，调用该接口强制设置设备网络参数之后设备将会重启。 \n
  
  *  @~english
@@ -1951,7 +1971,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetEnumDevTimeout(IN unsigned int nMilTimeo
  *  @param  nDefaultGateWay             [IN]            It refers to the default gateway. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
  *  @remarks After forcing the configuration of device network parameters (including IP address, subnet mask,and default gateway), create device handle again.
-             This API is supported GigEVision(MV_GIGE_DEVICE) and GenTL(MV_GENTL_GIGE_DEVICE) device.
+             This API is supported GigE Vision(MV_GIGE_DEVICE) and GenTL(MV_GENTL_GIGE_DEVICE) device.
              The device will restart after calling this API to set network parameters forcefully when the device is in DHCP status. 
 ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_GIGE_ForceIpEx(IN void* handle, IN unsigned int nIP, IN unsigned int nSubNetMask, IN unsigned int nDefaultGateWay);
@@ -1967,7 +1987,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_ForceIpEx(IN void* handle, IN unsigned int 
     | \ref MV_IP_CFG_DHCP   | 0x06000000   | DHCP自动获取IP模式   | 
     | \ref MV_IP_CFG_LLA   | 0x04000000   | LLA(Link-local address)，链路本地地址   | 
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 发送命令设置设备的IP方式，如DHCP、LLA等，仅支持GigEVision(MV_GIGE_DEVICE)和GenTl(MV_GENTL_GIGE_DEVICE)的设备。
+ *  @remarks 发送命令设置设备的IP方式，如DHCP、LLA等，仅支持GigE Vision(MV_GIGE_DEVICE)和GenTL(MV_GENTL_GIGE_DEVICE)的设备。
  
  *  @~english
  *  @brief  Configures IP mode. 
@@ -1988,7 +2008,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetIpConfig(IN void* handle, IN unsigned in
     | \ref MV_NET_TRANS_DRIVER |   0x00000001 |   驱动模式  |  
     | \ref MV_NET_TRANS_SOCKET |   0x00000002 |   Socket模式  |
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 通过该接口可以设置SDK内部优先使用的网络模式，默认优先使用驱动模式，仅GigEVision设备支持。
+ *  @remarks 通过该接口可以设置SDK内部优先使用的网络模式，默认优先使用驱动模式，仅GigE Vision设备支持。
  
  *  @~english
  *  @brief  Sets SDK internal priority network mode. If it is not set, driver mode is used by default. 
@@ -2005,7 +2025,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetNetTransMode(IN void* handle, IN unsigne
  *  @param  handle                      [IN]            设备句柄
  *  @param  pstInfo                     [IN][OUT]       信息结构体
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 通过该接口可以获取网络传输相关信息，包括已接收数据大小、丢帧数量等，在 MV_CC_StartGrabbing() 开启采集之后调用。仅GigEVision相机支持。
+ *  @remarks 通过该接口可以获取网络传输相关信息，包括已接收数据大小、丢帧数量等，在 MV_CC_StartGrabbing() 开启采集之后调用。仅GigE Vision相机支持。
  
  *  @~english
  *  @brief  Gets network transmission information. 
@@ -2013,7 +2033,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetNetTransMode(IN void* handle, IN unsigne
  *  @param  pstInfo                     [IN][OUT]       It refers to network transmission information structure. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
  *  @remarks Call this API to get information about network transmission after grabbing images via calling MV_CC_StartGrabbing(), including received data size and the number of lost frames. 
-             This API is supported only by GigEVision devices.
+             This API is supported only by GigE Vision devices.
 ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_GIGE_GetNetTransInfo(IN void* handle, IN OUT MV_NETTRANS_INFO* pstInfo);
 
@@ -2022,7 +2042,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_GetNetTransInfo(IN void* handle, IN OUT MV_
  *  @brief  设置枚举命令的回复包类型
  *  @param  nMode                       [IN]            回复包类型（默认广播），0-单播，1-广播
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
- *  @remarks 该接口只对GigE相机有效。
+ *  @remarks 该接口只对GigE Vision相机有效。
 
  *  @~english
  *  @brief  Sets the ACK mode of enumeration command. 
@@ -2036,7 +2056,7 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetDiscoveryMode(IN unsigned int nMode);
  *  @~chinese
  *  @brief  设置GVSP取流超时时间
  *  @param  handle                      [IN]            设备句柄
- *  @param  nMillisec                   [IN]            超时时间，默认300ms，范围：>10ms
+ *  @param  nMillisec                   [IN]            超时时间，默认300ms，范围：>=10ms
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
  *  @remarks 连接设备之后，取流动作发生前，调用该接口可以设置GVSP取流超时时间。GVSP取流超时设置过短可能造成图像异常，设置过长可能造成取流时间变长。
  
@@ -2138,21 +2158,21 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_GetRetryGvcpTimes(IN void* handle, IN OUT u
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  获取最佳的packet size，该接口目前只支持GigE设备
+ *  @brief  获取最佳的packet size，该接口目前只支持GigE Vision设备
  *  @param  handle                      [IN]            设备句柄
  *  @return 最佳packetsize
- *  @remarks \li 获取最佳的packet size，对应GigEVision设备是SCPS，对应U3V设备是每次从驱动读取的包大小，该大小即网络上传输一个包的大小。\n
+ *  @remarks \li 获取最佳的packet size，对应GigE Vision设备是SCPS，对应USB3 Vision设备是每次从驱动读取的包大小，该大小即网络上传输一个包的大小。\n
              \li 该接口需要在 MV_CC_OpenDevice() 之后、 MV_CC_StartGrabbing() 之前调用。\n
-             \li 该接口不支持CameraLink设备、U3V设备。\n
+             \li 该接口不支持CameraLink设备、USB3 Vision设备。\n
              \li 该接口不支持GenTL设备（协议不支持），如果是GenTL方式添加的网口相机，建议根据网络实际情况配置GevSCPSPacketSize，或者配置1500。
  
  *  @~english
  *  @brief  Gets the optimal packet size. 
  *  @param  handle                      [IN]            It refers to the device handle. 
  *  @return Returns optimal packet size. 
- *  @remarks The optimal packet size for GigEVision device is SCPS.
+ *  @remarks The optimal packet size for GigE Vision device is SCPS.
              This API should be called after calling MV_CC_OpenDevice(), and before calling MV_CC_StartGrabbing(). 
-             This API is not supported by CameraLink device and U3V device. 
+             This API is not supported by CameraLink device and USB3 Vision device. 
 			 This API is not supported by GenTL device (unsupported protocols). For GigE Vision cameras added via GenTL, configure GevSCPSPacketSize or configure 1500 as needed. 
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_GetOptimalPacketSize(IN void* handle);
@@ -2165,7 +2185,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_GetOptimalPacketSize(IN void* handle);
  *  @param  nMaxResendPercent           [IN]            最大重发比
  *  @param  nResendTimeout              [IN]            重发超时时间，范围：0-10000ms
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
- *  @remarks 连接设备之后调用该接口可以设置重发包属性，仅GigEVision设备支持。
+ *  @remarks 连接设备之后调用该接口可以设置重发包属性，仅GigE Vision设备支持。
  
  *  @~english
  *  @brief  Sets whether to enable packet resending, and sets corresponding parameters. 
@@ -2266,7 +2286,7 @@ MV_CAMCTRL_API int __stdcall  MV_GIGE_GetResendTimeInterval(IN void* handle, IN 
     | \ref MV_GIGE_TRANSTYPE_UNICAST_WITHOUT_RECV | 00010000 | 表示设置了单播，但本实例不接收图像数据 |
     | \ref MV_GIGE_TRANSTYPE_MULTICAST_WITHOUT_RECV | 00010001 | 表示组播模式，但本实例不接收图像数据 |
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
- *  @remarks 通过该接口可以设置传输模式为单播、组播等模式，仅GigEVision设备支持。
+ *  @remarks 通过该接口可以设置传输模式为单播、组播等模式，仅GigE Vision设备支持。
 
  *  @~english
  *  @brief  Sets the transmission mode, including unicast and multicast. 
@@ -2283,14 +2303,14 @@ MV_CAMCTRL_API int __stdcall MV_GIGE_SetTransmissionType(IN void* handle, IN MV_
  *  @param   pstActionCmdInfo           [IN]            动作命令信息
  *  @param   pstActionCmdResults        [IN][OUT]       动作命令返回信息列表
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
- *  @remarks 仅GigEVision设备支持。
+ *  @remarks 仅GigE Vision设备支持, 支持最多16个组播地址同时发送命令。
 
  *  @~english
  *  @brief  Sends action commands. 
  *  @param   pstActionCmdInfo           [IN]            It refers to information of action commands. 
  *  @param   pstActionCmdResults        [IN][OUT]       It refers to list of returned information about action commands. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
- *  @remarks This API is supported only by GigEVision devices.
+ *  @remarks This API is supported only by GigE Vision devices, Supports sending commands to up to 16 multicast addresses simultaneously.
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_GIGE_IssueActionCommand(IN MV_ACTION_CMD_INFO* pstActionCmdInfo, IN OUT MV_ACTION_CMD_RESULT_LIST* pstActionCmdResults);
 
@@ -2432,36 +2452,38 @@ MV_CAMCTRL_API int __stdcall MV_CAML_SetGenCPTimeOut(IN void* handle, IN unsigne
 
 /// @}
 
-/*******************Part9 ch: 仅U3V设备支持的接口 | en: API exclusively for USB3 Vision (U3V) devices*******************/
+/*******************Part9 ch: 仅USB3 Vision设备支持的接口 | en: API exclusively for USB3 Vision (USB3 Vision) devices*******************/
 
 /// \addtogroup U3V相机
 /// @{
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  设置U3V的传输包大小
+ *  @brief  设置USB3 Vision的传输包大小
  *  @param  handle                      [IN]            设备句柄
- *  @param  nTransferSize               [IN]            传输的包大小, Byte，默认为1M，rang：>=0x400，建议最大值：[windows] rang <= 0x400000；[Linux] rang <= 0x200000
+ *  @param  nTransferSize               [IN]            传输的包大小, Byte，默认为1M，需4的倍数，rang：>=0x8000，建议最大值：[windows] rang <= 0x400000；[Linux] rang <= 0x200000
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
  *  @remarks 增加传输包大小可以适当降低取流时的CPU占用率。但不同的PC和不同USB扩展卡存在不同的兼容性，如果该参数设置过大可能会出现取不到图像的风险。
+             MacOS系统中，传输包大小设置过小，可能导致开始取流接口报前置条件错误，该值和图像大小与传输通道个数有关，无法给出准确的最小值，MacOS系统中尽量不做修改。
  
  *  @~english
  *  @brief  Sets transmission packet size of USB3 vision cameras. 
  *  @param  handle                      [IN]            It refers to the device handle.
- *  @param  nTransferSize               [IN]            It refers to the size of the transmission packet (unit: byte), and the default value is 1 MB (1,048,576 bytes).rang: >=0x400. 
+ *  @param  nTransferSize               [IN]            It refers to the size of the transmission packet (unit: byte), and the default value is 1 MB (1,048,576 bytes), Multiples of 4. rang: >=0x8000. 
                                                         Recommended maximum values: [Windows] range ≤ 0x400000; [Linux] range ≤ 0x200000.
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
  *  @remarks Increasing the packet size can reduce the CPU usage, but for different computers and USB expansion cards, the compatibility is different. If the packet size is too large, image acquisition might fail. 
+             On macOS systems, setting the TransferSize too small may cause MV_CC_StartGrabbing to return MV_E_PRECONDITION. This value is related to the image size and TransferWays, so it is not possible to provide an exact minimum value. It is recommended to avoid modifying this setting whenever possible.
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_USB_SetTransferSize(IN void* handle, IN unsigned int nTransferSize);
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  获取U3V的传输包大小
+ *  @brief  获取USB3 Vision的传输包大小
  *  @param  handle                      [IN]            设备句柄
  *  @param  pnTransferSize              [IN][OUT]       传输的包大小指针, Byte
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 该接口用于获取当前的U3V传输包大小，默认1M。
+ *  @remarks 该接口用于获取当前的USB3 Vision传输包大小，默认1M。
  
  *  @~english
  *  @brief  Gets transmission packet size of USB3 vision cameras. 
@@ -2474,7 +2496,7 @@ MV_CAMCTRL_API int __stdcall MV_USB_GetTransferSize(IN void* handle, IN OUT unsi
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  设置U3V的传输通道个数
+ *  @brief  设置USB3 Vision的传输通道个数
  *  @param  handle                      [IN]            设备句柄
  *  @param  nTransferWays               [IN]            传输通道个数，范围：1-10
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
@@ -2491,11 +2513,11 @@ MV_CAMCTRL_API int __stdcall MV_USB_SetTransferWays(IN void* handle, IN unsigned
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  获取U3V的传输通道个数
+ *  @brief  获取USB3 Vision的传输通道个数
  *  @param  handle                      [IN]            设备句柄
  *  @param  pnTransferWays              [IN][OUT]       传输通道个数指针
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 该接口用于获取当前的U3V异步取流节点个数，U口相机传输通道个数和像素格式对应的负载包大小相关，可通过（最大异步注册长度/像素格式对应的负载包大小）计算得出。 \n
+ *  @remarks 该接口用于获取当前的USB3 Vision异步取流节点个数，U口相机传输通道个数和像素格式对应的负载包大小相关，可通过（最大异步注册长度/像素格式对应的负载包大小）计算得出。 \n
  *          2000W设备的MONO8默认为3个，YUV为默认2个，RGB为默认1个，其它情况默认8个节点。
  
  *  @~english
@@ -2503,18 +2525,18 @@ MV_CAMCTRL_API int __stdcall MV_USB_SetTransferWays(IN void* handle, IN unsigned
  *  @param  handle                      [IN]            It refers to the device handle.
  *  @param  pnTransferWays              [IN][OUT]       It refers to the pointer to the number of transmission channels. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
- *  @remarks This API is used to get the current number of U3V asynchronous image acquisition nodes. 
+ *  @remarks This API is used to get the current number of USB3 Vision asynchronous image acquisition nodes. 
              For USB3 vision cameras, the number of transmission channels is closely related to the packet size corresponding to the pixel format, and it can be calculated based on the max. asynchronous registration length/packet size of pixel format. 
 ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_USB_GetTransferWays(IN void* handle, IN OUT unsigned int* pnTransferWays);
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  设置U3V的事件缓存节点个数
+ *  @brief  设置USB3 Vision的事件缓存节点个数
  *  @param  handle                      [IN]            设备句柄
  *  @param  nEventNodeNum               [IN]            事件缓存节点个数，范围：1-64
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 该接口用于设置当前的U3V事件缓存节点个数，默认情况下为5个。
+ *  @remarks 该接口用于设置当前的USB3 Vision事件缓存节点个数，默认情况下为5个。
  
  *  @~english
  *  @brief  Sets the number of event buffer nodes of USB3 vision cameras. 
@@ -2527,7 +2549,7 @@ MV_CAMCTRL_API int __stdcall MV_USB_SetEventNodeNum(IN void* handle, IN unsigned
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  设置U3V的同步读写超时时间，范围为:[1000, INT_MAX)，默认1000 ms
+ *  @brief  设置USB3 Vision的同步读写超时时间，范围为:[1000, INT_MAX)，默认1000 ms
  *  @param  handle                      [IN]            设备句柄
  *  @param  nMills                      [IN]            设置同步读写超时时间,默认时间为1000ms
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
@@ -2544,11 +2566,11 @@ MV_CAMCTRL_API int __stdcall MV_USB_SetSyncTimeOut(IN void* handle, IN unsigned 
 
 /********************************************************************//**
  *  @~chinese
- *  @brief  获取U3V相机同步读写超时时间
+ *  @brief  获取USB3 Vision相机同步读写超时时间
  *  @param  handle                      [IN]            设备句柄
  *  @param  pnMills                     [IN][OUT]       获取的超时时间(ms)
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 该接口用于获取当前的U3V同步读写超时时间大小，默认1000ms。
+ *  @remarks 该接口用于获取当前的USB3 Vision同步读写超时时间大小，默认1000ms。
  
  *  @~english
  *  @brief  Gets the timeout duration for sync reading and writing of USB3 vision devices. 
@@ -2754,38 +2776,39 @@ MV_CAMCTRL_API int __stdcall MV_CC_FlipImage(IN void* handle, IN OUT MV_CC_FLIP_
              \li 该接口调用无接口顺序要求，有图像源数据就可以进行转换，可以先调用 MV_CC_GetOneFrameTimeout() 或者 MV_CC_RegisterImageCallBackEx() 设置回调函数，获取一帧图像数据，然后再通过该接口转换格式。如果设备当前采集图像是JPEG压缩的格式，则不支持调用该接口进行转换。 \n
              \li 该接口支持转换的图像长乘宽至UINT_MAX。 \n
              \li 像素格式转换能力的详情，如下表所示。第一列为输入像素格式，第一行为转换后的像素格式。“  √  ”代表可以转换为目标像素格式。
-                | 输入格式\输出格式 | Mono8 | RGB24 | BGR24 | YUV422 | YV12 | YUV422 YUYV |
-                | ----------- | :-----: | :-----: | :-----: | :------: | :----: | :-----------: |
-                | Mono8       |  ×  |  √  |  √  |  √  |  √  |  ×  |
-                | Mono10      |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | Mono10P     |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | Mono12      |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | Mono12P     |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGR8    |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerRG8    |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGB8    |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerBG8    |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerRBGG8  |  ×  |  √  |  √  |  ×  |  ×  |  ×  |
-                | BayerGR10   |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerRG10   |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGB10   |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerBG10   |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGR12   |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerRG12   |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGB12   |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerBG12   |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGR10P  |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerRG10P  |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGB10P  |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerBG10P  |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGR12P  |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerRG12P  |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerGB12P  |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | BayerBG12P  |  √  |  √  |  √  |  √  |  √  |  ×  |
-                | RGB8P       |  √  |  ×  |  √  |  √  |  √  |  ×  |
-                | BGR8P       |  √  |  √  |  ×  |  √  |  √  |  ×  |
-                | YUV422P     |  √  |  √  |  √  |  ×  |  √  |  ×  |
-                | YUV422 YUYV |  √  |  √  |  √  |  √  |  √  |  ×  |
+                | 输入格式\输出格式 | Mono8 | RGB24 | BGR24 | RGB Planar | YUV422 | YUV422 YUYV |
+                | ----------------- | ----- | ----- | ----- | ---------- | ------ | ----------- |
+                | Mono8             |   √   |   √   |   √   |            |   √    |      √      |
+                | Mono10            |   √   |   √   |   √   |            |   √    |      √      |
+                | Mono10P           |   √   |   √   |   √   |            |   √    |      √      |
+                | Mono12            |   √   |   √   |   √   |            |   √    |      √      |
+                | Mono12P           |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerGR8          |   √   |   √   |   √   |      √     |   √    |      √      |
+                | BayerRG8          |   √   |   √   |   √   |      √     |   √    |      √      |
+                | BayerGB8          |   √   |   √   |   √   |      √     |   √    |      √      |
+                | BayerBG8          |   √   |   √   |   √   |      √     |   √    |      √      |
+                | BayerRBGG8        |   √   |   √   |   √   |      √     |   √    |      √      |
+                | BayerBRGG8        |   √   |   √   |   √   |      √     |   √    |      √      |
+                | BayerGR10         |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerRG10         |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerGB10         |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerBG10         |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerGR12         |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerRG12         |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerGB12         |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerBG12         |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerGR10P        |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerRG10P        |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerGB10P        |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerBG10P        |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerGR12P        |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerRG12P        |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerGB12P        |   √   |   √   |   √   |            |   √    |      √      |
+                | BayerBG12P        |   √   |   √   |   √   |            |   √    |      √      |
+                | RGB8P             |   √   |   √   |   √   |      √     |   √    |      √      |
+                | BGR8P             |   √   |   √   |   √   |      √     |   √    |      √      |
+                | YUV422P           |   √   |   √   |   √   |            |   √    |      √      |
+                | YUV422 YUYV       |   √   |   √   |   √   |            |   √    |      √      |
  
  *  @~english
  *  @brief  Converts pixel format.
@@ -2968,12 +2991,14 @@ MV_CAMCTRL_API int __stdcall MV_CC_PurpleFringing(IN void* handle, IN MV_CC_PURP
  *  @param  handle                      [IN]            设备句柄
  *  @param  pstParam                    [IN]            ISP配置参数
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks  该接口仅支持windows平台
 
  *  @~english
  *  @brief  Sets ISP parameters. 
  *  @param  handle                      [IN]            It refers to the device handle.
  *  @param  pstParam                    [IN][OUT]       It refers to the ISP parameter structure. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
+ *  @remarks This API only supports windows platform.
  *  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_SetISPConfig(void* handle, IN MV_CC_ISP_CONFIG_PARAM* pstParam);
 
@@ -2985,6 +3010,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetISPConfig(void* handle, IN MV_CC_ISP_CONFI
  *  @param  pstOutputImage              [IN][OUT]       输出图像结构体
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
  *  @remarks 需要先调用 MV_CC_SetISPConfig() 传入配置文件, 配置文件由ISP工具生成
+ *  @remarks  该接口仅支持windows平台
 
  *  @~english
  *  @brief  Processes the images with ISP algorithm. 
@@ -2993,6 +3019,7 @@ MV_CAMCTRL_API int __stdcall MV_CC_SetISPConfig(void* handle, IN MV_CC_ISP_CONFI
  *  @param  pstOutputImage              [IN][OUT]       It refers to the output image structure. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure. 
  *  @remarks Before calling this API, call MV_CC_SetISPConfig() to import configuration file generated by the ISP tool. 
+ *  @remarks This API only supports windows platform.
  *  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_ISPProcess(void* handle, IN MV_CC_IMAGE* pstInputImage, MV_CC_IMAGE* pstOutputImage);
 
@@ -3027,14 +3054,14 @@ MV_CAMCTRL_API int __stdcall MV_CC_HB_Decode(IN void* handle, IN OUT MV_CC_HB_DE
  *  @param  handle                      [IN]            设备句柄
  *  @param  pstRecordParam              [IN]            录像参数结构体
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
- *  @note   该接口最大支持Width×Height为8000×8000大小,最小支持96*96。若超出，会导致调用 MV_CC_InputOneFrame() 错误。
+ *  @note   该接口最大支持Width×Height为8192×8192大小，最小支持96×96。若超出，会导致调用 MV_CC_InputOneFrame() 错误。
  
  *  @~english
  *  @brief  Starts recording. 
  *  @param  handle                      [IN]            It refers to the device handle.
  *  @param  pstRecordParam              [IN]            It refers to the recording parameter structure. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
- *  @remarks  The max. supported width × height is 8000*8000. The min. supported width × height is 96*96. If the value exceeds, an error will occur when calling MV_CC_InputOneFrame().
+ *  @remarks  The max. supported width × height is 8192x8192. The min. supported width × height is 96x96. If the value exceeds, an error will occur when calling MV_CC_InputOneFrame().
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_StartRecord(IN void* handle, IN MV_CC_RECORD_PARAM* pstRecordParam);
 
@@ -3044,14 +3071,33 @@ MV_CAMCTRL_API int __stdcall MV_CC_StartRecord(IN void* handle, IN MV_CC_RECORD_
  *  @param  handle                      [IN]            设备句柄
  *  @param  pstInputFrameInfo           [IN]            录像数据结构体
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
+ *  @remarks 不支持HB和JPEG直接输入，需要先解码。
  
  *  @~english
  *  @brief  Inputs raw data for recording. 
  *  @param  handle                      [IN]            It refers to the device handle.
  *  @param  pstInputFrameInfo           [IN]            It refers to the record data structure. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+ *  @remarks Direct input of HB and JPEG is not supported; decoding is required first.
  ************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_InputOneFrame(IN void* handle, IN MV_CC_INPUT_FRAME_INFO * pstInputFrameInfo);
+
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  输入录像数据
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pstInputFrameInfo           [IN]            录像数据结构体
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。 
+ *  @remarks 支持HB和JPEG直接输入，SDK内部解码。
+ 
+ *  @~english
+ *  @brief  Inputs raw data for recording. 
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  pstInputFrameInfo           [IN]            It refers to the record data structure. 
+ *  @return Direct input of HB and JPEG is supported, with decoding handled internally by the SDK.
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_InputOneFrameEx(IN void* handle, IN MV_CC_INPUT_FRAME_INFO_EX * pstInputFrameInfo);
 
 /********************************************************************//**
  *  @~chinese
@@ -3072,20 +3118,19 @@ MV_CAMCTRL_API int __stdcall MV_CC_StopRecord(IN void* handle);
  *  @param  handle                      [IN]            设备句柄
  *  @param  pstReconstructParam         [IN][OUT]       重构图像参数
  *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
- *  @remarks 图像分割功能可将多个不同曝光值所对应的图像交叠合并为1张图像。 \n
-            使用时，需与线阵相机的“MultiLightControl”节点搭配。假设设置该节点为2，则相机会将2个不同曝光值所对应的两张图像交叠合并为1张图像（实际高度为2张图像的高度）发送给上层应用程序。 \n
-            此时，调用该接口并传入分时曝光值nExposureNum为2，可将相机发送的1张图像分割为2张图像，并且这2张图像分别对应1个曝光值。 \n
-            若使用普通相机或未打开线阵相机的“MultiLightControl”节点，且nExposureNum设置为n，则图像分割无意义，只是将图像按行分割为n张图像，每张图像的高度变为原图像的1/n。 \n
+ *  @remarks 使用时，需与线阵相机的分时频闪或分时曝光等场景搭配。假设设置分时曝光节点为2，则相机会将2个不同曝光值所对应的两张图像交叠合并为1张图像（实际高度为2张图像的高度）发送给上层应用程序。 \n
+             此时，调用该接口并传入分时曝光值nExposureNum为2，可将相机发送的1张图像分割为2张图像，并且这2张图像分别对应1个曝光值。 \n
+             若使用面阵相机或使用线阵相机，但未启用分时曝光/分时频闪功能，则调用该接口进行图像分割是毫无意义的，尤其是Bayer格式，会打乱图像内容。 \n
 
  *  @~english
  *  @brief  Reconstructs the image for multi-light control. 
  *  @param  handle                      [IN]            It refers to the device handle. 
  *  @param  pstReconstructParam         [IN][OUT]       It refers to the image reconstruction parameters. 
  *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
- *  @remarks This API should be used with "MultiLightControl" node of line scan camera. If the value of MultiLightControl node is 2, the camera will reconstruct 2 images with different exposure values into one image (with its height the sum of two images) and send it to the upper layer application. 
-             If this API is called then and the value of nExposureNum is set to 2, the reconstructed image will be later divided to 2 images with two corresponding exposure values. 
-             If line scan camera is not used or MultiLightControl node of line scan camera is disabled, and nExposureNum value is set to n, the image reconstructing function will not work. The image will be divided into n images by line, each of them with the height 1/n of the original image. 
- ************************************************************************/
+ *  @remarks When used, this API must be paired with multi-light control of line scan cameras. If the multi-light exposure node is 2, the camera will reconstruct 2 images with different exposure values into one image (with its height the sum of two images) and send it to the upper layer application.
+             If this API is called then and the value of nExposureNum is set to 2, the reconstructed image will be later divided to 2 images with two corresponding exposure values.
+             If using an area scan camera or a line scan camera without enabling the multi-light control function, calling this interface for image splitting is meaningless, especially for Bayer format images, as it may disrupt the image content.
+************************************************************************/
 MV_CAMCTRL_API int __stdcall MV_CC_ReconstructImage(IN void* handle, IN OUT MV_RECONSTRUCT_IMAGE_PARAM* pstReconstructParam);
 
 /// @}
@@ -3188,6 +3233,309 @@ MV_CAMCTRL_API int __stdcall MV_CC_SerialPort_Close(IN void* handle);
 
 /// @}
 
+/**************************Part13 ch: 支持液态镜头的设备接口 | en: API for devices supporting liquid lens ******************************************/
+
+/// \addtogroup 液态镜头控制相关
+/// @{
+/********************************************************************//**
+ *  @~chinese
+ *  @brief    打开液态镜头
+ *  @param    handle                      [IN]            设备句柄
+ *  @param    pstLiquidLensInfo           [OUT]           液态镜头基本信息
+ *  @return   成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码" 。
+ *  @remarks  
+
+ *  @~english
+ *  @brief    Open the liquid lens.  
+ *  @param    handle                      [IN]            It refers to the device handle. 
+ *  @param    pstLiquidLensInfo           [OUT]           It refers to the information of liquid lens.
+ *  @return   Returns MV_OK for success, and returns corresponding Error Code for failure.    
+ *  @remarks  
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_Open(IN void* handle, OUT MV_CC_LIQUIDLENS_INFO* pstLiquidLensInfo);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief    关闭液态镜头
+ *  @param    handle                      [IN]            设备句柄
+ *  @return   成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码" 。
+ *  @remarks  
+
+ *  @~english
+ *  @brief    Close the liquid lens.  
+ *  @param    handle                      [IN]            It refers to the device handle. 
+ *  @return   Returns MV_OK for success, and returns corresponding Error Code for failure.    
+ *  @remarks  
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_Close(IN void* handle);
+
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  设置光焦度
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  nFocalPower                 [IN]            光焦度值. 范围[INT16_MIN, INT16_MAX]
+ *  @param  nTriggerEnable              [IN]            是否触发相机，0-不触发， 非0-触发
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks 当nTriggerEnable不为0时，用户需要先把相机设置为软触发模式，接口调用后，相机将触发一帧图像，否则无法出图。
+
+ *  @~english
+ *  @brief  Sets the focal power of liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  nFocalPower                 [IN]            It refers to the focal power value. range[INT16_MIN, INT16_MAX]
+ *  @param  nTriggerEnable              [IN]            It refers to whether to trigger the camera. 0: not trigger; non-zero: trigger.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+ *  @remarks When nTriggerEnable is not 0, the user needs to set the camera to software trigger mode first. After calling this API, the camera will trigger one frame of image. Otherwise, the camera will not output images.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_SetFocalPower(IN void* handle, IN int nFocalPower, IN int nTriggerEnable);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取光焦度信息
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pnFocalPower               [OUT]           当前光焦度
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+
+ *  @~english
+ *  @brief  Gets the focal power information of liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  pnFocalPower               [OUT]           It refers to the current focal power.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_GetFocalPower(IN void* handle, OUT int* pnFocalPower);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  执行自动对焦
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pstAutoFocusParam           [IN]            自动对焦参数
+ *  @param  nOutputImage                [IN]            对焦过程中是否输出图像，0: 丢弃对焦过程中的图像，非0：保留对焦过程中的图像
+ *  @param  pnResultFocalPower          [OUT]           最佳清晰位置的光焦度值，如果不需要此值，可以置空
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks \li 当nOutputImage非0时，用户可以通过注册回调或者MV_CC_GetImageBuffer主动获取图像，但在对焦前建议增大图像缓存节点个数， 且如果是回调取图，回调中不要进行耗时操作，否则SDK内部会主动丢弃图像。\n
+             \li 对焦过程中会将相机切换成软触发模式，对焦结束后，会将触发模式恢复到对焦前的设定。\n
+             \li 为了提高对焦的有效性，对焦前请确保对焦画面亮度均匀。\n
+
+ *  @~english
+ *  @brief  Executes auto focus for liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  pstAutoFocusParam           [IN]            It refers to the auto focus parameters.
+ *  @param  nOutputImage                [IN]            It refers to whether to output images during auto focus. 
+ *                                                      0: discard images during auto focus; non-zero: retain images during auto focus. 
+ *  @param  pnResultFocalPower          [OUT]           It refers to the focal power value at the best focus position, set to 0 if this value is not required.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+ *  @remarks When nOutputImage is non-zero, users can obtain images by registering a callback or using MV_CC_GetImageBuffer. However, before focusing, it is recommended to increase the number of image buffer nodes. 
+ *           Additionally, if images are acquired through the callback, avoid performing time-consuming operations within the callback; otherwise, the SDK will actively discard images.
+ *           During auto focus, the camera will be switched to software trigger mode. After auto focus is completed, the trigger mode will be restored to the setting before auto focus.
+ *           To improve the effectiveness of auto focus, please ensure the focus image brightness is uniform before focusing.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_AutoFocus(IN void* handle, IN MV_CC_LIQUIDLENS_AUTOFOCUS_PARAM* pstAutoFocusParam, IN int nOutputImage, OUT int* pnResultFocalPower);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  执行光焦度区间扫描
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pstRangeScanParam           [IN]            区间扫描参数
+ *  @param  cbLiquidLensMsg             [IN]            液态镜头上传消息回调函数
+ *  @param  pUser                       [IN]            用户自定义变量
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks \li 调用接口前需要用户先把相机设置为软触发模式，否则扫描过程中相机无法触发出图。相机触发出图的时机受触发延迟时间的影响，可以通过MV_CC_LiquidLens_SetTriggerDelayTime接口设置。\n
+             \li 在回调中可以获取到光焦度变化事件和扫描结束事件，如果是光焦度变化事件，消息数据返回的是当前光焦度值。\n
+             \li 注意：请勿在回调函数中执行耗时操作，否则会阻塞串口数据的读写，影响设备通信性能。\n
+
+ *  @~english
+ *  @brief  Executes focal power range scan for liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  pstRangeScanParam           [IN]            It refers to the range scan parameters.
+ *  @param  cbLiquidLensMsg             [IN]            It refers to the callback function for liquid lens messages.
+ *  @param  pUser                       [IN]            It refers to the user-defined variable.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+ *  @remarks Before calling this API, the user needs to set the camera to software trigger mode first. Otherwise, the camera cannot trigger and output images during the scan process. 
+ *           The timing of camera trigger image output is affected by the trigger delay time, which can be set through the MV_CC_LiquidLens_SetTriggerDelayTime API.\n
+ *           In the callback, you can obtain focal power change events and scan end events. If it is a focal power change event, the message data returns the current focal power value.
+ *           Note: Do not perform time-consuming operations in the callback function, otherwise it will block serial port data read/write and affect device communication performance.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_FocalPowerRangeScan(IN void* handle, IN MV_CC_LIQUIDLENS_RANGE_SCAN_PARAM* pstRangeScanParam, IN MvLiquidLensMsgCallback cbLiquidLensMsg, IN void* pUser);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  执行多焦度轮询
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pstMultiFPScanParam         [IN]            多焦度扫描参数
+ *  @param  cbLiquidLensMsg             [IN]            液态镜头上传消息回调函数
+ *  @param  pUser                       [IN]            用户自定义变量
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks \li 调用接口前需要用户先把相机设置为软触发模式，否则扫描过程中相机无法触发出图。相机触发出图的时机受触发延迟时间的影响，可以通过MV_CC_LiquidLens_SetTriggerDelayTime接口设置。\n
+             \li 在回调中可以获取到光焦度变化事件和扫描结束事件，如果是光焦度变化事件，消息数据返回的是当前光焦度值。\n
+             \li 注意：请勿在回调函数中执行耗时操作，否则会阻塞串口数据的读写，影响设备通信性能。\n
+
+ *  @~english
+ *  @brief  Executes multi focal power scan for liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  pstMultiFPScanParam         [IN]            It refers to the multi focal power scan parameters.
+ *  @param  cbLiquidLensMsg             [IN]            It refers to the callback function for liquid lens messages.
+ *  @param  pUser                       [IN]            It refers to the user-defined variable.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+ *  @remarks Before calling this API, the user needs to set the camera to software trigger mode first. Otherwise, the camera cannot trigger and output images during the scan process.
+ *           The timing of camera trigger image output is affected by the trigger delay time, which can be set through the MV_CC_LiquidLens_SetTriggerDelayTime API.
+ *           In the callback, you can obtain focal power change events and scan end events. If it is a focal power change event, the message data returns the current focal power value.
+ *           Note: Do not perform time-consuming operations in the callback function, otherwise it will block serial port data read/write and affect device communication performance.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_MultiFocalPowerScan(IN void* handle, IN MV_CC_LIQUIDLENS_MULTI_FP_SCAN_PARAM* pstMultiFPScanParam, IN MvLiquidLensMsgCallback cbLiquidLensMsg, IN void* pUser);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  设置触发延时
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  nDelayTimeMs                [IN]            触发延迟时间，单位：毫秒,不能大于65535
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks 触发延迟时间决定相机触发出图的时机，比如发送设置光焦度命令后，等待一个触发延迟时间后，再触发出图（如果需要）。
+
+ *  @~english
+ *  @brief  Sets the trigger delay time for liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  nDelayTimeMs                [IN]            It refers to the trigger delay time, unit: millisecond,cannot exceed 65535.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+ *  @remarks The trigger delay time determines when the camera triggers to output images. For example, after sending a focal power setting command, wait for the trigger delay time before triggering image output (if needed).
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_SetTriggerDelayTime(IN void* handle, IN unsigned int nDelayTimeMs);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取触发延时
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  pnDelayTimeMs               [OUT]           触发延迟时间
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+
+ *  @~english
+ *  @brief  Gets the trigger delay time for liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  pnDelayTimeMs               [OUT]           It refers to the trigger delay time.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_GetTriggerDelayTime(IN void* handle, OUT unsigned int* pnDelayTimeMs);
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  保存参数到指定用户集
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  enUserSet                   [IN]            用户集
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+
+ *  @~english
+ *  @brief  Saves parameters to the specified user set of liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  enUserSet                   [IN]            It refers to the user set.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_SaveUserSet(IN void* handle, IN MV_CC_LIQUIDLENS_USERSET enUserSet);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取当前用户集
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  penUserSet                  [OUT]           当前用户集
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+
+ *  @~english
+ *  @brief  Gets the current user set of liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  penUserSet                  [OUT]           It refers to the current user set.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_GetCurrentUserSet(IN void* handle, OUT MV_CC_LIQUIDLENS_USERSET* penUserSet);
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  加载指定用户集
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  enUserSet                   [IN]            用户集
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+
+ *  @~english
+ *  @brief  Loads the specified user set for liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  enUserSet                   [IN]            It refers to the user set.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_LoadUserSet(IN void* handle, IN MV_CC_LIQUIDLENS_USERSET enUserSet);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  设置默认用户集
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  enUserSet                   [IN]            用户集
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks 调用此接口后，镜头重新上电后，将默认加载设定的用户集。
+
+ *  @~english
+ *  @brief  Sets the default user set for liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  enUserSet                   [IN]            It refers to the user set.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+ *  @remarks After calling this API, the lens will load the set user set by default after power-on.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_SetDefaultUserSet(IN void* handle, IN MV_CC_LIQUIDLENS_USERSET enUserSet);
+
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取默认用户集
+ *  @param  handle                      [IN]            设备句柄
+ *  @param  penUserSet                  [OUT]           默认用户集
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+
+ *  @~english
+ *  @brief  Gets the default user set of liquid lens.
+ *  @param  handle                      [IN]            It refers to the device handle.
+ *  @param  penUserSet                  [OUT]           It refers to the default user set.
+ *  @return Returns MV_OK for success, and returns corresponding Error Code for failure.
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_GetDefaultUserSet(IN void* handle, OUT MV_CC_LIQUIDLENS_USERSET* penUserSet);
+/********************************************************************//**
+*  @~chinese
+ *  @brief  设置液态镜头温度变化检测时间间隔
+ *  @param  handle              [IN]    设备句柄
+ *  @param  nIntervalSeconds    [IN]    检测时间间隔（单位：秒），不能大于65535
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  
+ *  @~english
+ *  @brief  Set temperature detection interval for liquid lens
+ *  @param  handle              [IN]    It refers to the device handle.
+ *  @param  nIntervalSeconds    [IN]    It refers to the detection interval in seconds,cannot exceed 65535.
+ *  @return Success, return \ref status code "MV_OK"; Failure, return \ref status code "status code".
+************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_SetTempDetectInterval(IN void* handle, IN unsigned int nIntervalSeconds);
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  获取液态镜头温度变化检测时间间隔
+ *  @param  handle              [IN]    设备句柄
+ *  @param  pnIntervalSeconds   [OUT]   检测时间间隔（单位：秒）
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  
+ *  @~english
+ *  @brief  Get temperature detection interval for liquid lens
+ *  @param  handle              [IN]    It refers to the device handle.
+ *  @param  pnIntervalSeconds   [OUT]   It refers to the detection interval in seconds
+ *  @return Success, return \ref status code "MV_OK"; Failure, return \ref status code "status code".
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_GetTempDetectInterval(IN void* handle, OUT unsigned int* pnIntervalSeconds);
+/********************************************************************//**
+ *  @~chinese
+ *  @brief  注册液态镜头异常事件回调接口
+ *  @param  handle          [IN]    设备句柄
+ *  @param  cbLiquidLensException     [IN]    异常事件回调函数指针
+ *  @param  pUser           [IN]    用户自定义数据
+ *  @return 成功，返回\ref 状态码 "MV_OK"；失败，返回\ref 状态码 "状态码"。
+ *  @remarks 镜头发生异常时，可以在回调里面获取到异常消息，比如镜头异常断开。
+
+ *  @~english
+ *  @brief  Register liquid lens exception event callback interface
+ *  @param  handle                    [IN]    It refers to the device handle.
+ *  @param  cbLiquidLensException     [IN]    It refers to the exception event callback function pointer
+ *  @param  pUser                     [IN]    It refers to the user defined data
+ *  @return Success, return \ref status code "MV_OK"; Failure, return \ref status code "status code".
+ *  @remarks When the lens encounters exceptions, you can obtain the exception information through the callback, such as obtaining the exception message after the lens is abnormally disconnected.
+ ************************************************************************/
+MV_CAMCTRL_API int __stdcall MV_CC_LiquidLens_RegisterExceptionCallBack(IN void* handle, IN MvLiquidLensExceptionCallback cbLiquidLensException, IN void* pUser);
+/// @}
 #ifdef __cplusplus
 }
 #endif 

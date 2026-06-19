@@ -57,6 +57,7 @@ enum MvGvspPixelType
     PixelType_Gvsp_BayerGB8                 = (MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(8) | 0x000A),                  ///< BayerGB8
     PixelType_Gvsp_BayerBG8                 = (MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(8) | 0x000B),                  ///< BayerBG8
     PixelType_Gvsp_BayerRBGG8               = (MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(8) | 0x0046),                  ///< BayerRBGG8
+    PixelType_Gvsp_BayerBRGG8               = (MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(8) | 0x0047),                  ///< BayerBRGG8
     PixelType_Gvsp_BayerGR10                = (MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(16) | 0x000C),                 ///< BayerGR10
     PixelType_Gvsp_BayerRG10                = (MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(16) | 0x000D),                 ///< BayerRG10
     PixelType_Gvsp_BayerGB10                = (MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(16) | 0x000E),                 ///< BayerGB10
@@ -161,6 +162,7 @@ enum MvGvspPixelType
     PixelType_Gvsp_HB_BayerGB8                 =   (MV_GVSP_PIX_CUSTOM | MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(8) | 0x000A),         ///< HB_BayerGB8
     PixelType_Gvsp_HB_BayerBG8                 =   (MV_GVSP_PIX_CUSTOM | MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(8) | 0x000B),         ///< HB_BayerBG8
     PixelType_Gvsp_HB_BayerRBGG8               =   (MV_GVSP_PIX_CUSTOM | MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(8) | 0x0046),         ///< HB_BayerRBGG8
+    PixelType_Gvsp_HB_BayerBRGG8               =   (MV_GVSP_PIX_CUSTOM | MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(8) | 0x0047),         ///< HB_BayerBRGG8
     PixelType_Gvsp_HB_BayerGR10                =   (MV_GVSP_PIX_CUSTOM | MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(16) | 0x000C),        ///< HB_BayerGR10
     PixelType_Gvsp_HB_BayerRG10                =   (MV_GVSP_PIX_CUSTOM | MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(16) | 0x000D),        ///< HB_BayerRG10
     PixelType_Gvsp_HB_BayerGB10                =   (MV_GVSP_PIX_CUSTOM | MV_GVSP_PIX_MONO | MV_PIXEL_BIT_COUNT(16) | 0x000E),        ///< HB_BayerGB10
