@@ -74,14 +74,9 @@ struct Camera::Impl final {
     using param_id = detail::parameter_id;
     using param_value = detail::parameter_value;
 
-    constexpr static auto kBufferSize = 5;
-
     sdk::ConvertParam convert_context;
+    bool convert_context_ready = false;
     sdk::Handler camera_handler;
-
-    std::array<std::vector<Byte>, kBufferSize> buffers;
-    std::size_t buffer_size = 0;
-    std::size_t buffer_index = 0;
 
     unsigned int timeout_ms;
 
@@ -112,21 +107,24 @@ struct Camera::Impl final {
         auto guard =
             util::scope_exit{[&] { std::ignore = MV_CC_FreeImageBuffer(camera_handler, &info); }};
 
-        if (buffer_size == 0) {
+        if (!convert_context_ready) {
             if (auto result = update_convert_context(info); !result) {
                 return util::make_unexpected(
                     "Failed to update convert context: {}", result.error());
             }
         }
 
+        // 每帧分配一块独立持有的 cv::Mat；ConvertPixelType 直接写入其内部存储，
+        // 不再经过共享 ring buffer，因此不需要额外 clone() 来解耦所有权。
+        cv::Mat owned(info.stFrameInfo.nHeight, info.stFrameInfo.nWidth, CV_8UC3);
+
         convert_context.pSrcData = info.pBufAddr;
-        convert_context.pDstBuffer = buffers[fetch_and_update_buffer_index()].data();
+        convert_context.pDstBuffer = owned.data;
         code = MV_CC_ConvertPixelType(camera_handler, &convert_context);
         if (code != sdk::OK)
             return util::make_unexpected_with_error("Failed to convert image", code);
 
-        // clone() 确保返回的 cv::Mat 拥有独立内存，不依赖内部循环缓冲区
-        return generate_mat(info).clone();
+        return owned;
     }
 
     auto read_image_with_timestamp() noexcept -> std::expected<Image, std::string> {
@@ -876,12 +874,6 @@ private:
 
     // ---- Existing helpers (unchanged) ----
 
-    auto fetch_and_update_buffer_index() noexcept -> std::size_t {
-        const auto current = buffer_index;
-        buffer_index = (buffer_index + 1) % kBufferSize;
-        return current;
-    }
-
     template <typename T>
     auto set(char const* key, T value) noexcept -> std::expected<void, std::string> {
         if (camera_handler == nullptr) {
@@ -989,8 +981,6 @@ private:
         }
 
         auto& frame_info = info.stFrameInfo;
-        buffer_size = frame_info.nWidth * frame_info.nHeight * 3;
-        std::ranges::for_each(buffers, [this](auto& buffer) { buffer.resize(buffer_size); });
 
         convert_context.nWidth = frame_info.nWidth;
         convert_context.nHeight = frame_info.nHeight;
@@ -999,17 +989,10 @@ private:
         convert_context.enSrcPixelType = frame_info.enPixelType;
         convert_context.enDstPixelType = PixelType_Gvsp_BGR8_Packed;
 
-        convert_context.nDstBufferSize = buffer_size;
+        convert_context.nDstBufferSize =
+            static_cast<unsigned int>(frame_info.nWidth) * frame_info.nHeight * 3;
 
+        convert_context_ready = true;
         return {};
-    }
-
-    auto generate_mat(const sdk::FrameOut& source_info) const -> cv::Mat {
-        return {
-            source_info.stFrameInfo.nHeight,
-            source_info.stFrameInfo.nWidth,
-            CV_8UC3,
-            convert_context.pDstBuffer,
-        };
     }
 };
