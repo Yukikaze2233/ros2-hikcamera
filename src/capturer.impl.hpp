@@ -190,6 +190,12 @@ struct Camera::Impl final {
             }
         }
 
+        // Resolution (USB bandwidth limited on some controllers)
+        if (auto ret = set(sdk::key::Width, config->width); !ret)
+            return std::unexpected{ret.error()};
+        if (auto ret = set(sdk::key::Height, config->height); !ret)
+            return std::unexpected{ret.error()};
+
         // Start grabbing image
         if (sdk::OK != (code = MV_CC_StartGrabbing(camera_handler)))
             return util::make_unexpected_with_error("Failed to start grabbing", code);

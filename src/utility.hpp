@@ -60,6 +60,8 @@ namespace key {
     constexpr auto BalanceRatio               = "BalanceRatio";
     constexpr auto Brightness                 = "Brightness";
     constexpr auto Sharpness                  = "Sharpness";
+    constexpr auto Width                       = "Width";
+    constexpr auto Height                      = "Height";
 } // namespace key
 
 } // namespace hikcamera::sdk
