@@ -190,12 +190,6 @@ struct Camera::Impl final {
             }
         }
 
-        if (auto ret = set(sdk::key::Brightness, config->brightness); !ret)
-            return std::unexpected{ret.error()};
-
-        if (auto ret = set(sdk::key::Sharpness, config->sharpness); !ret)
-            return std::unexpected{ret.error()};
-
         // Start grabbing image
         if (sdk::OK != (code = MV_CC_StartGrabbing(camera_handler)))
             return util::make_unexpected_with_error("Failed to start grabbing", code);
