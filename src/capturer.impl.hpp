@@ -198,7 +198,7 @@ struct Camera::Impl final {
 
         // 降缓冲区数量，防 DMA 分配失败（20MP 传感器 5×60MB=300MB 连续内存）
         if (sdk::OK != MV_CC_SetImageNodeNum(camera_handler, 2))
-            std::println(stderr, "WARN: SetImageNodeNum failed");
+            fprintf(stderr, "WARN: SetImageNodeNum failed\n");
 
         // Start grabbing image
         if (sdk::OK != (code = MV_CC_StartGrabbing(camera_handler)))
