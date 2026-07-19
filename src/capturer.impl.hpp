@@ -12,7 +12,7 @@ using namespace hikcamera;
 struct Camera::Impl final {
     using Byte = unsigned char;
 
-    constexpr static auto kBufferSize = 5;
+    constexpr static auto kBufferSize = 2;
 
     sdk::ConvertParam convert_context;
     sdk::Handler camera_handler;
