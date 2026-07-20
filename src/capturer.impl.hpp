@@ -14,7 +14,7 @@ struct Camera::Impl final {
 
     constexpr static auto kBufferSize = 2;
 
-    sdk::ConvertParam convert_context;
+    sdk::ConvertParamEx convert_context;
     sdk::Handler camera_handler;
 
     std::array<std::vector<Byte>, kBufferSize> buffers;
@@ -56,7 +56,7 @@ struct Camera::Impl final {
 
         convert_context.pSrcData = info.pBufAddr;
         convert_context.pDstBuffer = buffers[fetch_and_update_buffer_index()].data();
-        code = MV_CC_ConvertPixelType(camera_handler, &convert_context);
+        code = MV_CC_ConvertPixelTypeEx(camera_handler, &convert_context);
         if (code != sdk::OK)
             return util::make_unexpected_with_error("Failed to convert image", code);
 
@@ -199,6 +199,10 @@ struct Camera::Impl final {
         // 降缓冲区数量，防 DMA 分配失败（20MP 传感器 5×60MB=300MB 连续内存）
         if (sdk::OK != MV_CC_SetImageNodeNum(camera_handler, 2))
             fprintf(stderr, "WARN: SetImageNodeNum failed\n");
+
+        // USB3 传输块：默认 1M，Linux 最大 0x200000(2MB)，全分辨率 raw 帧 ~20MB 需要大块
+        if (sdk::OK != MV_USB_SetTransferSize(camera_handler, 0x200000))
+            fprintf(stderr, "WARN: SetTransferSize failed\n");
 
         // Start grabbing image
         if (sdk::OK != (code = MV_CC_StartGrabbing(camera_handler)))

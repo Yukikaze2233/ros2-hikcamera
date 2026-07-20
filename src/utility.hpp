@@ -42,7 +42,8 @@ using DeviceInfoList = MV_CC_DEVICE_INFO_LIST;
 
 using FrameOut = MV_FRAME_OUT;
 
-using ConvertParam = MV_CC_PIXEL_CONVERT_PARAM;
+using ConvertParam    = MV_CC_PIXEL_CONVERT_PARAM;
+using ConvertParamEx  = MV_CC_PIXEL_CONVERT_PARAM_EX;
 
 namespace key {
     constexpr auto GevSCPSPacketSize          = "GevSCPSPacketSize";

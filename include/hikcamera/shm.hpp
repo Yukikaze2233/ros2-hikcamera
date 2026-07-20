@@ -15,7 +15,7 @@
 #include "hikcamera/capturer.hpp"
 
 #define SLOT_NUM 4
-#define MAX_IMAGE_SIZE 36864000
+#define MAX_IMAGE_SIZE 60000000
 
 namespace hikcamera {
 
