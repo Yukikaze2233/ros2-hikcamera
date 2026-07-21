@@ -8,40 +8,52 @@ auto SHMInit(const std::string& shm_path_name, size_t shm_size) -> std::expected
         return std::unexpected("Failed to create shared memory object");
     }
     if (ftruncate(shm_fd, shm_size) == -1) {
+        close(shm_fd);
         return std::unexpected("Failed to set size of shared memory object");
     }
-    auto image_shm = reinterpret_cast<imageSHM*>(
-        mmap(nullptr, shm_size, PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0));
-    pthread_mutexattr_t mutex_attr;
-    pthread_mutexattr_init(&mutex_attr);
-    pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
-    pthread_mutex_init(&image_shm->mutex, &mutex_attr);
-    sem_init(&image_shm->sem, 1, 0);
-    image_shm->read_index         = -1;
-    image_shm->write_index        = -1;
-    image_shm->counter            = 1;
-    image_shm->is_shm_initialized.store(true, std::memory_order_release);
-    image_shm->frame_counter.store(0, std::memory_order_release);
     return { shm_fd };
 }
 
-auto SHMWrite(int shm_fd, const Camera::Image& data)
-    -> std::expected<void, std::string> {
-    auto image_shm = reinterpret_cast<imageSHM*>(mmap(nullptr,
-        sizeof(imageSHM), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0));
+auto SHMGetPtr(int shm_fd) -> std::expected<imageSHM*, std::string> {
+    auto image_shm = reinterpret_cast<imageSHM*>(
+        mmap(nullptr, sizeof(imageSHM), PROT_READ | PROT_WRITE, MAP_SHARED, shm_fd, 0));
     if (image_shm == MAP_FAILED) {
         return std::unexpected("Failed to map shared memory object");
     }
-    pthread_mutex_lock(&image_shm->mutex);
+    if (!image_shm->is_shm_initialized.load(std::memory_order_acquire)) {
+        pthread_mutexattr_t mutex_attr;
+        pthread_mutexattr_init(&mutex_attr);
+        pthread_mutexattr_setpshared(&mutex_attr, PTHREAD_PROCESS_SHARED);
+        pthread_mutex_init(&image_shm->mutex, &mutex_attr);
+        sem_init(&image_shm->sem, 1, 0);
+        image_shm->read_index         = -1;
+        image_shm->write_index        = -1;
+        image_shm->counter            = 1;
+        image_shm->is_shm_initialized.store(true, std::memory_order_release);
+        image_shm->frame_counter.store(0, std::memory_order_release);
+    }
+    return { image_shm };
+}
+
+auto SHMReleasePtr(imageSHM* image_shm) -> std::expected<void, std::string> {
+    if (munmap(image_shm, sizeof(imageSHM)) == -1) {
+        return std::unexpected("Failed to unmap shared memory object");
+    }
+    return { };
+}
+
+auto SHMWrite(imageSHM* image_shm, Camera& camera) -> std::expected<void, std::string> {
     image_shm->write_index++;
     auto write_index = image_shm->write_index % SLOT_NUM;
-    std::memcpy(
-        image_shm->imagedata[write_index], data.mat.data, data.mat.total() * data.mat.elemSize());
-    image_shm->timestamp[write_index] = data.timestamp;
-    pthread_mutex_unlock(&image_shm->mutex);
+
+    auto ret = camera.read_image_with_timestamp(image_shm->imagedata[write_index]);
+    if (!ret) {
+        return std::unexpected(ret.error());
+    }
+
+    image_shm->timestamp[write_index] = ret->timestamp;
     image_shm->frame_counter.fetch_add(1, std::memory_order_release);
     sem_post(&image_shm->sem);
-    munmap(image_shm, sizeof(imageSHM));
     return { };
 }
 

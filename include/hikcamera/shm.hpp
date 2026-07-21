@@ -32,7 +32,9 @@ typedef struct imageSHM {
 } imageSHM;
 
 auto SHMInit(const std::string& shm_path_name, size_t shm_size) -> std::expected<int, std::string>;
-auto SHMWrite(int shm_fd, const Camera::Image& data) -> std::expected<void, std::string>;
+auto SHMGetPtr(int shm_fd) -> std::expected<imageSHM*, std::string>;
+auto SHMReleasePtr(imageSHM* shm) -> std::expected<void, std::string>;
+auto SHMWrite(imageSHM* shm, Camera& camera) -> std::expected<void, std::string>;
 auto SHMRead(int shm_fd, cv::Mat& out_mat, std::chrono::steady_clock::time_point& out_ts,
     int width, int height) -> std::expected<void, std::string>;
 auto SHMClose(int shm_fd) -> std::expected<bool, std::string>;
