@@ -18,7 +18,7 @@ struct Camera::Impl final {
     sdk::Handler camera_handler;
 
     std::array<std::vector<Byte>, kBufferSize> buffers;
-    std::size_t buffer_size = 0;
+    std::size_t buffer_size  = 0;
     std::size_t buffer_index = 0;
 
     unsigned int timeout_ms;
@@ -31,21 +31,22 @@ struct Camera::Impl final {
             std::filesystem::remove_all("./MvSdkLog");
             std::filesystem::remove_all("./MvFGSdkLog");
             std::filesystem::remove_all("./$(ALLUSERSPROFILE)");
-        } catch (...) {}
+        } catch (...) { }
     }
 
     auto read_image() noexcept -> std::expected<cv::Mat, std::string> {
         if (camera_handler == nullptr)
-            return std::unexpected{"Attempted to read from an uninitialized camera"};
+            return std::unexpected { "Attempted to read from an uninitialized camera" };
 
-        auto info = sdk::FrameOut{};
-        auto code = std::uint32_t{};
+        auto info = sdk::FrameOut { };
+        auto code = std::uint32_t { };
 
         code = MV_CC_GetImageBuffer(camera_handler, &info, timeout_ms);
         if (code != sdk::OK)
             return util::make_unexpected_with_error("Failed to get image buffer", code);
-        auto guard =
-            util::scope_exit{[&] { std::ignore = MV_CC_FreeImageBuffer(camera_handler, &info); }};
+        auto guard = util::scope_exit { [&] {
+            std::ignore = MV_CC_FreeImageBuffer(camera_handler, &info);
+        } };
 
         if (buffer_size == 0) {
             if (auto result = update_convert_context(info); !result) {
@@ -54,7 +55,7 @@ struct Camera::Impl final {
             }
         }
 
-        convert_context.pSrcData = info.pBufAddr;
+        convert_context.pSrcData   = info.pBufAddr;
         convert_context.pDstBuffer = buffers[fetch_and_update_buffer_index()].data();
         code = MV_CC_ConvertPixelTypeEx(camera_handler, &convert_context);
         if (code != sdk::OK)
@@ -63,15 +64,34 @@ struct Camera::Impl final {
         return generate_mat(info);
     }
 
-    auto read_image_with_timestamp() noexcept -> std::expected<Image, std::string> {
-        if (auto result = read_image()) {
-            return Image{
-                .mat = result.value(),
-                .timestamp = Image::Clock::now(),
-            };
-        } else {
-            return std::unexpected{result.error()};
+    auto read_image_with_timestamp(void* dst_buffer) noexcept -> std::expected<Image, std::string> {
+        if (camera_handler == nullptr)
+            return std::unexpected { "Attempted to read from an uninitialized camera" };
+
+        auto info = sdk::FrameOut { };
+        auto code = MV_CC_GetImageBuffer(camera_handler, &info, timeout_ms);
+        if (code != sdk::OK)
+            return util::make_unexpected_with_error("Failed to get image buffer", code);
+        auto guard = util::scope_exit { [&] {
+            std::ignore = MV_CC_FreeImageBuffer(camera_handler, &info);
+        } };
+
+        if (buffer_size == 0) {
+            if (auto result = update_convert_context(info); !result) {
+                return util::make_unexpected(
+                    "Failed to update convert context: {}", result.error());
+            }
         }
+
+        convert_context.pSrcData   = info.pBufAddr;
+        convert_context.pDstBuffer = static_cast<unsigned char*>(dst_buffer);
+        code = MV_CC_ConvertPixelTypeEx(camera_handler, &convert_context);
+        if (code != sdk::OK)
+            return util::make_unexpected_with_error("Failed to convert image", code);
+
+        auto stamp = Image::Clock::now();
+        auto mat = cv::Mat(info.stFrameInfo.nHeight, info.stFrameInfo.nWidth, CV_8UC3, dst_buffer);
+        return Image { .mat = mat, .timestamp = stamp };
     }
 
     auto configure(const Config& _config) noexcept { config = _config; }
@@ -82,38 +102,35 @@ struct Camera::Impl final {
         }
 
         if (!config.has_value()) {
-            return std::unexpected{"Need configure"};
+            return std::unexpected { "Need configure" };
         }
 
-        auto code = std::uint32_t{};
+        auto code = std::uint32_t { };
 
-        timeout_ms = config->timeout_ms;
-        auto guard_handler = util::scope_exit{[this] { camera_handler = nullptr; }};
+        timeout_ms         = config->timeout_ms;
+        auto guard_handler = util::scope_exit { [this] { camera_handler = nullptr; } };
 
         auto result = util::search_device();
-        if (!result.has_value())
-            return std::unexpected{result.error()};
+        if (!result.has_value()) return std::unexpected { result.error() };
 
         auto device = result.value();
-        if (device == nullptr)
-            return std::unexpected{"Null device was got by searching"};
+        if (device == nullptr) return std::unexpected { "Null device was got by searching" };
 
         // Create and open device
         if (sdk::OK != (code = MV_CC_CreateHandleWithoutLog(&camera_handler, device)))
             return util::make_unexpected_with_error("Failed to create handler", code);
-        auto guard_destroy = util::scope_exit{[this] { MV_CC_DestroyHandle(camera_handler); }};
+        auto guard_destroy = util::scope_exit { [this] { MV_CC_DestroyHandle(camera_handler); } };
 
         if (sdk::OK != (code = MV_CC_OpenDevice(camera_handler)))
             return util::make_unexpected_with_error("Failed to open device", code);
-        auto guard_close = util::scope_exit{[this] { MV_CC_CloseDevice(camera_handler); }};
+        auto guard_close = util::scope_exit { [this] { MV_CC_CloseDevice(camera_handler); } };
 
         if (device->nTLayerType == MV_GIGE_DEVICE) {
             auto size = MV_CC_GetOptimalPacketSize(camera_handler);
-            if (size <= 0)
-                return std::unexpected{"Invalid packet size"};
+            if (size <= 0) return std::unexpected { "Invalid packet size" };
 
             if (auto ret = set(sdk::key::GevSCPSPacketSize, size); !ret)
-                return std::unexpected{"Failed to set packet size | " + ret.error()};
+                return std::unexpected { "Failed to set packet size | " + ret.error() };
         }
 
         // Fixed initialize method
@@ -123,78 +140,85 @@ struct Camera::Impl final {
                 return util::make_unexpected_with_error("Failed to set bayer cvt quality", code);
 
             if (auto ret = set(sdk::key::ExposureAuto, sdk::ExposureAutoMode::OFF); !ret)
-                return std::unexpected{ret.error()};
+                return std::unexpected { ret.error() };
         }
 
         // initialize using config
         {
             if (auto ret = set(sdk::key::ReverseX, config->invert_image); !ret)
-                return std::unexpected{ret.error()};
+                return std::unexpected { ret.error() };
 
             if (auto ret = set(sdk::key::ReverseY, config->invert_image); !ret)
-                return std::unexpected{ret.error()};
+                return std::unexpected { ret.error() };
 
             if (auto ret = set(sdk::key::ExposureTime, config->exposure_us); !ret)
-                return std::unexpected{ret.error()};
+                return std::unexpected { ret.error() };
 
             if (auto ret = set(sdk::key::Gain, config->gain); !ret)
-                return std::unexpected{ret.error()};
+                return std::unexpected { ret.error() };
 
             auto trigger_mode = config->trigger_mode ? sdk::TriggerMode::ON : sdk::TriggerMode::OFF;
             if (auto ret = set(sdk::key::TriggerMode, trigger_mode); !ret)
-                return std::unexpected{ret.error()};
+                return std::unexpected { ret.error() };
 
             if (config->software_sync)
                 if (auto ret = set(sdk::key::TriggerSource, sdk::TriggerSource::SOFTWARE); !ret)
-                    return std::unexpected{ret.error()};
+                    return std::unexpected { ret.error() };
 
             if (config->fixed_framerate) {
                 if (auto ret = set(sdk::key::AcquisitionFrameRateEnable, true); !ret)
-                    return std::unexpected{ret.error()};
+                    return std::unexpected { ret.error() };
 
                 if (auto ret = set(sdk::key::AcquisitionFrameRate, config->framerate); !ret)
-                    return std::unexpected{ret.error()};
+                    return std::unexpected { ret.error() };
             } else {
                 if (auto ret = set(sdk::key::AcquisitionFrameRateEnable, false); !ret)
-                    return std::unexpected{ret.error()};
+                    return std::unexpected { ret.error() };
             }
         }
 
         // White balance
         {
             if (auto ret = set(sdk::key::BalanceWhiteAuto,
-                    static_cast<sdk::AutoWhiteBalance>(config->auto_white_balance)); !ret)
-                return std::unexpected{ret.error()};
+                    static_cast<sdk::AutoWhiteBalance>(config->auto_white_balance));
+                !ret)
+                return std::unexpected { ret.error() };
 
             if (config->auto_white_balance == 0) {
-                if (sdk::OK != (code = MV_CC_SetEnumValue(
-                        camera_handler, sdk::key::BalanceRatioSelector, 0)))
+                if (sdk::OK
+                    != (code =
+                            MV_CC_SetEnumValue(camera_handler, sdk::key::BalanceRatioSelector, 0)))
                     return util::make_unexpected_with_error("Failed to select red ratio", code);
-                if (sdk::OK != (code = MV_CC_SetIntValue(
-                        camera_handler, sdk::key::BalanceRatio, config->white_balance_red)))
+                if (sdk::OK
+                    != (code = MV_CC_SetIntValue(
+                            camera_handler, sdk::key::BalanceRatio, config->white_balance_red)))
                     return util::make_unexpected_with_error("Failed to set red ratio", code);
 
-                if (sdk::OK != (code = MV_CC_SetEnumValue(
-                        camera_handler, sdk::key::BalanceRatioSelector, 1)))
+                if (sdk::OK
+                    != (code =
+                            MV_CC_SetEnumValue(camera_handler, sdk::key::BalanceRatioSelector, 1)))
                     return util::make_unexpected_with_error("Failed to select green ratio", code);
-                if (sdk::OK != (code = MV_CC_SetIntValue(
-                        camera_handler, sdk::key::BalanceRatio, config->white_balance_green)))
+                if (sdk::OK
+                    != (code = MV_CC_SetIntValue(
+                            camera_handler, sdk::key::BalanceRatio, config->white_balance_green)))
                     return util::make_unexpected_with_error("Failed to set green ratio", code);
 
-                if (sdk::OK != (code = MV_CC_SetEnumValue(
-                        camera_handler, sdk::key::BalanceRatioSelector, 2)))
+                if (sdk::OK
+                    != (code =
+                            MV_CC_SetEnumValue(camera_handler, sdk::key::BalanceRatioSelector, 2)))
                     return util::make_unexpected_with_error("Failed to select blue ratio", code);
-                if (sdk::OK != (code = MV_CC_SetIntValue(
-                        camera_handler, sdk::key::BalanceRatio, config->white_balance_blue)))
+                if (sdk::OK
+                    != (code = MV_CC_SetIntValue(
+                            camera_handler, sdk::key::BalanceRatio, config->white_balance_blue)))
                     return util::make_unexpected_with_error("Failed to set blue ratio", code);
             }
         }
 
         // Resolution (USB bandwidth limited on some controllers)
         if (auto ret = set(sdk::key::Width, config->width); !ret)
-            return std::unexpected{ret.error()};
+            return std::unexpected { ret.error() };
         if (auto ret = set(sdk::key::Height, config->height); !ret)
-            return std::unexpected{ret.error()};
+            return std::unexpected { ret.error() };
 
         // 降缓冲区数量，防 DMA 分配失败（20MP 传感器 5×60MB=300MB 连续内存）
         if (sdk::OK != MV_CC_SetImageNodeNum(camera_handler, 2))
@@ -212,11 +236,11 @@ struct Camera::Impl final {
         guard_destroy.release();
         guard_handler.release();
 
-        return {};
+        return { };
     }
 
     auto disconnect() noexcept -> std::expected<void, std::string> {
-        auto on_exit = util::scope_exit{[this] { camera_handler = nullptr; }};
+        auto on_exit = util::scope_exit { [this] { camera_handler = nullptr; } };
 
         if (auto ret = MV_CC_StopGrabbing(camera_handler); ret != sdk::OK)
             return util::make_unexpected_with_error("Failed to stop grabbing:", ret);
@@ -227,38 +251,38 @@ struct Camera::Impl final {
         if (auto ret = MV_CC_DestroyHandle(camera_handler); ret != sdk::OK)
             return util::make_unexpected_with_error("Failed to destory handle:", ret);
 
-        return {};
+        return { };
     }
 
 private:
     auto fetch_and_update_buffer_index() noexcept -> std::size_t {
         const auto current = buffer_index;
-        buffer_index = (buffer_index + 1) % kBufferSize;
+        buffer_index       = (buffer_index + 1) % kBufferSize;
         return current;
     }
 
     template <typename T>
     auto set(char const* key, T value) noexcept -> std::expected<void, std::string> {
         if (camera_handler == nullptr) {
-            std::unexpected{"Camera has not been initialized"};
+            std::unexpected { "Camera has not been initialized" };
         }
 
-        auto result = std::uint32_t{};
-        auto printable = std::string{};
+        auto result    = std::uint32_t { };
+        auto printable = std::string { };
         /*  */ if constexpr (std::same_as<T, bool>) {
-            result = MV_CC_SetBoolValue(camera_handler, key, value);
+            result    = MV_CC_SetBoolValue(camera_handler, key, value);
             printable = std::to_string(value);
         } else if constexpr (std::same_as<T, int>) {
-            result = MV_CC_SetIntValue(camera_handler, key, value);
+            result    = MV_CC_SetIntValue(camera_handler, key, value);
             printable = std::to_string(value);
         } else if constexpr (std::floating_point<T>) {
-            result = MV_CC_SetFloatValue(camera_handler, key, value);
+            result    = MV_CC_SetFloatValue(camera_handler, key, value);
             printable = std::to_string(value);
         } else if constexpr (std::is_enum_v<T>) {
-            result = MV_CC_SetEnumValue(camera_handler, key, std::to_underlying(value));
+            result    = MV_CC_SetEnumValue(camera_handler, key, std::to_underlying(value));
             printable = "enum underlying " + std::to_string(std::to_underlying(value));
         } else if constexpr (std::same_as<T, unsigned int>) {
-            result = MV_CC_SetIntValue(camera_handler, key, static_cast<int>(value));
+            result    = MV_CC_SetIntValue(camera_handler, key, static_cast<int>(value));
             printable = std::to_string(value);
         } else {
             static_assert(false, "Unknown type of value");
@@ -269,22 +293,22 @@ private:
             return util::make_unexpected(
                 "Failed to set '{}' with {}: {}", key, printable, translated);
         }
-        return {};
+        return { };
     }
 
     auto update_convert_context(sdk::FrameOut const& info) noexcept
         -> std::expected<void, std::string_view> {
 
         if (!util::is_rgb_pixel_type(info.stFrameInfo.enPixelType)) {
-            return std::unexpected{"Camera must has RGB channel"};
+            return std::unexpected { "Camera must has RGB channel" };
         }
 
         auto& frame_info = info.stFrameInfo;
-        buffer_size = frame_info.nWidth * frame_info.nHeight * 3;
+        buffer_size      = frame_info.nWidth * frame_info.nHeight * 3;
         std::ranges::for_each(buffers, [this](auto& buffer) { buffer.resize(buffer_size); });
 
-        convert_context.nWidth = frame_info.nWidth;
-        convert_context.nHeight = frame_info.nHeight;
+        convert_context.nWidth      = frame_info.nWidth;
+        convert_context.nHeight     = frame_info.nHeight;
         convert_context.nSrcDataLen = frame_info.nFrameLen;
 
         convert_context.enSrcPixelType = frame_info.enPixelType;
@@ -292,7 +316,7 @@ private:
 
         convert_context.nDstBufferSize = buffer_size;
 
-        return {};
+        return { };
     }
 
     auto generate_mat(const sdk::FrameOut& source_info) const -> cv::Mat {

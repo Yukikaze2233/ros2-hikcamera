@@ -53,7 +53,10 @@ public:
 
     /// @note: It takes time and will return before timeout.
     auto read_image() noexcept -> std::expected<cv::Mat, std::string>;
-    auto read_image_with_timestamp() noexcept -> std::expected<Image, std::string>;
+
+    /// Convert Bayer→BGR8 directly into dst_buffer (zero-copy for the caller).
+    /// Returns Image with cv::Mat wrapping dst_buffer and host-side timestamp.
+    auto read_image_with_timestamp(void* dst_buffer) noexcept -> std::expected<Image, std::string>;
 
     /// Alias
     ///
