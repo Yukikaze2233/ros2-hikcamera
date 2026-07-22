@@ -13,7 +13,8 @@ auto Camera::disconnect() noexcept -> std::expected<void, std::string> {
 auto Camera::read_image() noexcept -> std::expected<cv::Mat, std::string> {
     return pimpl->read_image();
 }
-auto Camera::read_image_with_timestamp(void* dst_buffer) noexcept -> std::expected<Image, std::string> {
+auto Camera::read_image_with_timestamp(std::span<unsigned char> dst_buffer) noexcept
+    -> std::expected<Image, std::string> {
     return pimpl->read_image_with_timestamp(dst_buffer);
 }
 

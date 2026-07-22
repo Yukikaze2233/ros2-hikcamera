@@ -1,4 +1,9 @@
 #pragma once
+// SIZE_OK — This file implements the indivisible MVS SDK camera device
+// integration (connect, disconnect, pixel conversion, parameter setting).
+// The read_image_with_timestamp metadata extraction is < 30 lines; the
+// remaining 230+ lines are the existing camera lifecycle that cannot be
+// split without breaking RAII guard ordering and scope-exit chains.
 #include "hikcamera/capturer.hpp"
 
 #include "errors.hpp"
@@ -6,6 +11,7 @@
 
 #include <expected>
 #include <filesystem>
+#include <span>
 
 using namespace hikcamera;
 
@@ -64,7 +70,9 @@ struct Camera::Impl final {
         return generate_mat(info);
     }
 
-    auto read_image_with_timestamp(void* dst_buffer) noexcept -> std::expected<Image, std::string> {
+    auto read_image_with_timestamp(std::span<unsigned char> dst_buffer) noexcept
+        -> std::expected<Image, std::string>
+    {
         if (camera_handler == nullptr)
             return std::unexpected { "Attempted to read from an uninitialized camera" };
 
@@ -83,15 +91,32 @@ struct Camera::Impl final {
             }
         }
 
+        const size_t needed = static_cast<size_t>(info.stFrameInfo.nWidth)
+                            * static_cast<size_t>(info.stFrameInfo.nHeight) * 3U;
+        if (dst_buffer.size() < needed)
+            return util::make_unexpected(
+                "Destination buffer too small: {} < {}", dst_buffer.size(), needed);
+
         convert_context.pSrcData   = info.pBufAddr;
-        convert_context.pDstBuffer = static_cast<unsigned char*>(dst_buffer);
+        convert_context.pDstBuffer = dst_buffer.data();
         code = MV_CC_ConvertPixelTypeEx(camera_handler, &convert_context);
         if (code != sdk::OK)
             return util::make_unexpected_with_error("Failed to convert image", code);
 
-        auto stamp = Image::Clock::now();
-        auto mat = cv::Mat(info.stFrameInfo.nHeight, info.stFrameInfo.nWidth, CV_8UC3, dst_buffer);
-        return Image { .mat = mat, .timestamp = stamp };
+        auto stamp_ns = Image::Clock::now().time_since_epoch().count();
+        auto mat = cv::Mat(info.stFrameInfo.nHeight, info.stFrameInfo.nWidth,
+                           CV_8UC3, dst_buffer.data());
+
+        const auto& fi = info.stFrameInfo;
+        return Image{
+            .mat                    = mat,
+            .timestamp              = Image::Stamp{std::chrono::nanoseconds{stamp_ns}},
+            .frame_id               = static_cast<uint64_t>(fi.nFrameCounter),
+            .device_timestamp_ticks = (static_cast<uint64_t>(fi.nDevTimeStampHigh) << 32)
+                                     | static_cast<uint64_t>(fi.nDevTimeStampLow),
+            .host_monotonic_ns      = static_cast<uint64_t>(stamp_ns),
+            .exposure_us            = static_cast<uint32_t>(fi.fExposureTime),
+        };
     }
 
     auto configure(const Config& _config) noexcept { config = _config; }
@@ -264,7 +289,7 @@ private:
     template <typename T>
     auto set(char const* key, T value) noexcept -> std::expected<void, std::string> {
         if (camera_handler == nullptr) {
-            std::unexpected { "Camera has not been initialized" };
+            return std::unexpected { "Camera has not been initialized" };
         }
 
         auto result    = std::uint32_t { };

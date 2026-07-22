@@ -1,6 +1,8 @@
 #pragma once
 #include <chrono>
+#include <cstdint>
 #include <expected>
+#include <span>
 #include <opencv2/core/mat.hpp>
 
 namespace hikcamera {
@@ -33,8 +35,13 @@ public:
         using Clock = std::chrono::steady_clock;
         using Stamp = Clock::time_point;
 
-        cv::Mat mat;
-        Stamp timestamp;
+        cv::Mat  mat;
+        Stamp    timestamp;             // host monotonic time at conversion
+
+        uint64_t frame_id{0};            // device frame counter
+        uint64_t device_timestamp_ticks{0};
+        uint64_t host_monotonic_ns{0};   // steady_clock ns at conversion
+        uint32_t exposure_us{0};         // device exposure, microseconds
     };
 
     explicit Camera() noexcept;
@@ -56,7 +63,8 @@ public:
 
     /// Convert Bayer→BGR8 directly into dst_buffer (zero-copy for the caller).
     /// Returns Image with cv::Mat wrapping dst_buffer and host-side timestamp.
-    auto read_image_with_timestamp(void* dst_buffer) noexcept -> std::expected<Image, std::string>;
+    auto read_image_with_timestamp(std::span<unsigned char> dst_buffer) noexcept
+        -> std::expected<Image, std::string>;
 
     /// Alias
     ///
