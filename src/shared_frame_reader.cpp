@@ -66,7 +66,8 @@ auto SharedFrameReader::open(const char* name) -> std::expected<void, std::strin
 
 auto SharedFrameReader::reopen() -> std::expected<void, std::string> {
     if (!state_ || state_->shm_name.empty()) return std::unexpected{"No previous open"};
-    return open(state_->shm_name.c_str());
+    const std::string name = state_->shm_name;
+    return open(name.c_str());
 }
 
 // RAII mutex unlocker for hot paths.
