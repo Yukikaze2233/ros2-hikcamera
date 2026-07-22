@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 
 find_package(ament_cmake REQUIRED)
-find_package(OpenCV REQUIRED)
+find_package(OpenCV 4.5 REQUIRED)
 
 # ---- library ----
 add_library(${PROJECT_NAME} SHARED
@@ -31,8 +31,7 @@ target_link_directories(${PROJECT_NAME} PUBLIC
 )
 
 target_link_libraries(${PROJECT_NAME}
-    opencv_core
-    opencv_imgproc
+    ${OpenCV_LIBS}
     MvCameraControl
 )
 
@@ -46,8 +45,7 @@ target_include_directories(test_shm PRIVATE
 )
 target_link_libraries(test_shm
     ${PROJECT_NAME}
-    opencv_core
-    opencv_imgproc
+    ${OpenCV_LIBS}
     pthread
     rt
 )
