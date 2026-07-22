@@ -8,7 +8,7 @@ set(CMAKE_C_STANDARD_REQUIRED ON)
 set(CMAKE_C_STANDARD 11)
 
 find_package(ament_cmake REQUIRED)
-find_package(OpenCV 4.5 REQUIRED)
+find_package(OpenCV REQUIRED)
 
 # ---- library ----
 add_library(${PROJECT_NAME} SHARED
@@ -31,7 +31,8 @@ target_link_directories(${PROJECT_NAME} PUBLIC
 )
 
 target_link_libraries(${PROJECT_NAME}
-    ${OpenCV_LIBS}
+    opencv_core
+    opencv_imgproc
     MvCameraControl
 )
 
@@ -45,7 +46,8 @@ target_include_directories(test_shm PRIVATE
 )
 target_link_libraries(test_shm
     ${PROJECT_NAME}
-    ${OpenCV_LIBS}
+    opencv_core
+    opencv_imgproc
     pthread
     rt
 )
@@ -69,6 +71,19 @@ add_test(NAME shm_boundary_reject
     COMMAND test_shm boundary_reject)
 add_test(NAME shm_timeout_code
     COMMAND test_shm timeout_code)
+
+set_tests_properties(
+    shm_two_readers
+    shm_lease_tear
+    shm_lagged_reader
+    shm_metadata_roundtrip
+    shm_creator_exclusive
+    shm_lease_lifetime
+    shm_concurrent_writes
+    shm_boundary_reject
+    shm_timeout_code
+    PROPERTIES TIMEOUT 30
+)
 
 # ---- install ----
 install(TARGETS ${PROJECT_NAME}
