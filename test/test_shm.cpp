@@ -186,6 +186,18 @@ static void test_boundary_reject() {
     {std::vector<unsigned char> big(kShmMaxPixelBytes+1);FrameMetadata m{};m.width=5472;m.height=3648;CHECK(!writer.write(m,big).has_value());}
 }
 
+static void test_timeout_code() {
+    auto name = make_name("tc"); shm_unlink(name.c_str());
+    auto wr = SharedFrameWriter::create(name.c_str());
+    REQUIRE(wr.has_value());
+    SharedFrameReader reader;
+    REQUIRE(reader.open(name.c_str()).has_value());
+    // Writer exists but sends no frames — wait_next must time out.
+    auto f = reader.wait_next(std::chrono::milliseconds{50});
+    REQUIRE(!f.has_value());
+    CHECK_EQ(f.error().code, FrameReadErrorCode::Timeout);
+}
+
 int main(int argc,char**argv){
     if(argc<2){std::cerr<<"Usage: test_shm <name>\n";return 1;}
     std::string t=argv[1];
@@ -197,6 +209,7 @@ int main(int argc,char**argv){
     else if(t=="lease_lifetime")test_lease_lifetime();
     else if(t=="concurrent_writes")test_concurrent_writes();
     else if(t=="boundary_reject")test_boundary_reject();
+    else if(t=="timeout_code")test_timeout_code();
     else{std::cerr<<"Unknown: "<<t<<'\n';return 1;}
     int f=g_failures.load();
     if(f==0){std::cout<<"PASS "<<t<<'\n';return 0;}

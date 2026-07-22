@@ -67,6 +67,8 @@ add_test(NAME shm_concurrent_writes
     COMMAND test_shm concurrent_writes)
 add_test(NAME shm_boundary_reject
     COMMAND test_shm boundary_reject)
+add_test(NAME shm_timeout_code
+    COMMAND test_shm timeout_code)
 
 # ---- install ----
 install(TARGETS ${PROJECT_NAME}

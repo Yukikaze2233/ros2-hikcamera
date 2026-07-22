@@ -18,24 +18,30 @@ struct SharedFrameReader::ReaderState {
 };
 
 // Shared slot-metadata validation used by wait_next and try_next.
-// Caller holds rdlock; returns nullopt/error and does NOT unlock.
+// Caller holds rdlock; returns error and does NOT unlock.
+// "stale" marker (committed_sequence != target_seq) is retried internally.
 static auto validate_slot(const FrameMetadata& meta, uint64_t target_seq)
-    -> std::expected<void, std::string>
+    -> std::expected<void, FrameReadError>
 {
     if (meta.committed_sequence != target_seq)
-        return std::unexpected{"stale"};  // special marker: retry
+        return std::unexpected{FrameReadError{
+            FrameReadErrorCode::InvalidFrame, "stale"}};
     if (meta.pixel_format != PixelFormat::BGR8)
-        return std::unexpected{"Pixel format is not BGR8"};
+        return std::unexpected{FrameReadError{
+            FrameReadErrorCode::InvalidFrame, "Pixel format is not BGR8"}};
     if (meta.width == 0 || meta.height == 0)
-        return std::unexpected{"Dimensions are zero"};
+        return std::unexpected{FrameReadError{
+            FrameReadErrorCode::InvalidFrame, "Dimensions are zero"}};
     const uint32_t min_stride = meta.width * 3U;
     const uint32_t stride = meta.stride_bytes > 0 ? meta.stride_bytes : min_stride;
     if (stride < min_stride)
-        return std::unexpected{"Stride < width*3"};
+        return std::unexpected{FrameReadError{
+            FrameReadErrorCode::InvalidFrame, "Stride < width*3"}};
     const uint64_t needed = static_cast<uint64_t>(stride) * meta.height;
     if (meta.committed_bytes == 0 || needed > meta.committed_bytes
         || meta.committed_bytes > kShmMaxPixelBytes)
-        return std::unexpected{"committed_bytes inconsistent"};
+        return std::unexpected{FrameReadError{
+            FrameReadErrorCode::InvalidFrame, "committed_bytes inconsistent"}};
     return {};
 }
 
@@ -67,15 +73,19 @@ auto SharedFrameReader::reopen() -> std::expected<void, std::string> {
 struct MutexGuard { pthread_mutex_t* m; ~MutexGuard() { if(m)pthread_mutex_unlock(m); } };
 
 auto SharedFrameReader::wait_next(std::chrono::milliseconds timeout)
-    -> std::expected<SharedFrame, std::string>
+    -> std::expected<SharedFrame, FrameReadError>
 {
     if (!state_ || !state_->is_open || !state_->ring_ref)
-        return std::unexpected{"Reader not open"};
+        return std::unexpected{FrameReadError{
+            FrameReadErrorCode::NotOpen, "Reader not open"}};
     auto* ring = state_->ring_ref.get();
 
     for (;;) {
         int lr = pthread_mutex_lock(&ring->mutex);
-        if (lr != 0) return std::unexpected{std::format("mutex_lock: {}", lr)};
+        if (lr != 0)
+            return std::unexpected{FrameReadError{
+                FrameReadErrorCode::Synchronization,
+                std::format("mutex_lock: {}", lr)}};
         MutexGuard mg{&ring->mutex};
 
         uint64_t latest = ring->latest_sequence.load(std::memory_order_acquire);
@@ -84,7 +94,10 @@ auto SharedFrameReader::wait_next(std::chrono::milliseconds timeout)
         if (timeout.count() == 0) {
             while (latest == last) {
                 int wr = pthread_cond_wait(&ring->cond, &ring->mutex);
-                if (wr != 0) return std::unexpected{std::format("cond_wait: {}", wr)};
+                if (wr != 0)
+                    return std::unexpected{FrameReadError{
+                        FrameReadErrorCode::Synchronization,
+                        std::format("cond_wait: {}", wr)}};
                 latest = ring->latest_sequence.load(std::memory_order_acquire);
             }
         } else {
@@ -101,12 +114,17 @@ auto SharedFrameReader::wait_next(std::chrono::milliseconds timeout)
                     latest = ring->latest_sequence.load(std::memory_order_acquire);
                     break;
                 }
-                if (wr != 0) return std::unexpected{std::format("cond_timedwait: {}", wr)};
+                if (wr != 0)
+                    return std::unexpected{FrameReadError{
+                        FrameReadErrorCode::Synchronization,
+                        std::format("cond_timedwait: {}", wr)}};
                 latest = ring->latest_sequence.load(std::memory_order_acquire);
             }
 
             if (latest == last)
-                return std::unexpected{"Timeout waiting for next frame"};
+                return std::unexpected{FrameReadError{
+                    FrameReadErrorCode::Timeout,
+                    "Timeout waiting for next frame"}};
         }
 
         const uint64_t target_seq = latest;
@@ -118,13 +136,16 @@ auto SharedFrameReader::wait_next(std::chrono::milliseconds timeout)
         pthread_mutex_unlock(&ring->mutex);
 
         int rr = pthread_rwlock_rdlock(&slot.lock);
-        if (rr != 0) return std::unexpected{std::format("rwlock_rdlock: {}", rr)};
+        if (rr != 0)
+            return std::unexpected{FrameReadError{
+                FrameReadErrorCode::Synchronization,
+                std::format("rwlock_rdlock: {}", rr)}};
 
         const auto& meta = slot.metadata;
         auto v = validate_slot(meta, target_seq);
         if (!v.has_value()) {
             pthread_rwlock_unlock(&slot.lock);
-            if (v.error() == "stale") continue;
+            if (v.error().message == "stale") continue;
             return std::unexpected{v.error()};
         }
 

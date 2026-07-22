@@ -3,8 +3,23 @@
 #include <atomic>
 #include <cstdint>
 #include <pthread.h>
+#include <string>
 
 namespace hikcamera {
+
+// ---- typed frame-read error ----
+
+enum class FrameReadErrorCode : uint8_t {
+    Timeout,           // no new frame within deadline (retryable)
+    NotOpen,           // reader not initialised
+    Synchronization,   // mutex/condvar/rwlock syscall failure
+    InvalidFrame,      // slot data integrity check failed
+};
+
+struct FrameReadError {
+    FrameReadErrorCode code;
+    std::string        message;
+};
 
 // ---- protocol identity ----
 

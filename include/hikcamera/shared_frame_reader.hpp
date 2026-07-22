@@ -52,7 +52,7 @@ public:
     /// `timeout` uses CLOCK_MONOTONIC.  0 = no timeout (infinite).
     [[nodiscard]] auto wait_next(
         std::chrono::milliseconds timeout = std::chrono::milliseconds{2000})
-        -> std::expected<SharedFrame, std::string>;
+        -> std::expected<SharedFrame, FrameReadError>;
 
     /// Non-blocking poll — returns latest frame if a new one exists.
     [[nodiscard]] auto try_next() -> std::optional<SharedFrame>;
