@@ -27,6 +27,10 @@ struct Config {
 
     bool trigger_mode    = false;
     bool fixed_framerate = true;
+
+    // 相机序列号 (SN)。非空时按序列号在多台相机中挑选目标设备；
+    // 为空则保持旧行为：仅当恰好枚举到 1 台时使用它。
+    std::string device_serial;
 };
 
 class Camera {

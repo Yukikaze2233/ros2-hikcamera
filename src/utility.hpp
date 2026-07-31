@@ -111,22 +111,32 @@ constexpr auto is_rgb_pixel_type(MvGvspPixelType type) noexcept -> bool {
     }
 }
 
+// 匹配设备：优先按序列号 (chSerialNumber) 精确匹配（多相机区分）；
+// 序列号为空或匹配不上时退回 UserDefinedName 匹配。
 constexpr auto compare(sdk::DeviceInfo const& info, std::string_view other) noexcept -> bool {
 
     unsigned char const* raw_name;
+    unsigned char const* raw_serial;
     const auto& special = info.SpecialInfo;
 
     switch (info.nTLayerType) {
     case MV_GIGE_DEVICE: {
-        raw_name = special.stGigEInfo.chUserDefinedName;
+        raw_name   = special.stGigEInfo.chUserDefinedName;
+        raw_serial = special.stGigEInfo.chSerialNumber;
         break;
     }
     case MV_USB_DEVICE: {
-        raw_name = special.stUsb3VInfo.chUserDefinedName;
+        raw_name   = special.stUsb3VInfo.chUserDefinedName;
+        raw_serial = special.stUsb3VInfo.chSerialNumber;
         break;
     }
     default:
         return false;
+    }
+
+    if (const auto serial = reinterpret_cast<char const*>(raw_serial);
+        serial != nullptr && serial[0] != '\0') {
+        if (other == serial) return true;
     }
 
     if (const auto device_name = reinterpret_cast<char const*>(raw_name)) {

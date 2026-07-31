@@ -135,7 +135,7 @@ struct Camera::Impl final {
         timeout_ms         = config->timeout_ms;
         auto guard_handler = util::scope_exit { [this] { camera_handler = nullptr; } };
 
-        auto result = util::search_device();
+        auto result = util::search_device(config->device_serial);
         if (!result.has_value()) return std::unexpected { result.error() };
 
         auto device = result.value();
