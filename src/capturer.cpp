@@ -1,5 +1,9 @@
 #include "capturer.impl.hpp"
 
+auto Camera::enum_serial_numbers() noexcept -> std::expected<std::vector<std::string>, std::string> {
+    return pimpl->enum_serial_numbers();
+}
+
 auto Camera::configure(const Config& config) noexcept -> void { pimpl->configure(config); }
 
 auto Camera::connect() noexcept -> std::expected<void, std::string> { return pimpl->connect(); }

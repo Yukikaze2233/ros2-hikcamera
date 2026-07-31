@@ -121,6 +121,28 @@ struct Camera::Impl final {
 
     auto configure(const Config& _config) noexcept { config = _config; }
 
+    auto enum_serial_numbers() noexcept -> std::expected<std::vector<std::string>, std::string> {
+        auto devices = sdk::DeviceInfoList { };
+        std::memset(&devices, 0, sizeof(devices));
+        const auto result = MV_CC_EnumDevices(MV_GIGE_DEVICE | MV_USB_DEVICE, &devices);
+        if (result != MV_OK) {
+            return util::make_unexpected_with_error("Failed to enum devices", result);
+        }
+        std::vector<std::string> serials;
+        serials.reserve(devices.nDeviceNum);
+        for (unsigned i = 0; i < devices.nDeviceNum; ++i) {
+            const auto* info = devices.pDeviceInfo[i];
+            if (info == nullptr) continue;
+            const auto* raw = (info->nTLayerType == MV_GIGE_DEVICE)
+                ? info->SpecialInfo.stGigEInfo.chSerialNumber
+                : info->SpecialInfo.stUsb3VInfo.chSerialNumber;
+            if (raw != nullptr && raw[0] != '\0') {
+                serials.emplace_back(reinterpret_cast<const char*>(raw));
+            }
+        }
+        return serials;
+    }
+
     auto connect() -> std::expected<void, std::string> {
         if (camera_handler != nullptr) {
             std::ignore = disconnect();
