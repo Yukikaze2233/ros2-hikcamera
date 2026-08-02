@@ -41,6 +41,7 @@ static_assert(std::atomic<bool>::is_always_lock_free,
 
 enum class PixelFormat : uint32_t {
     BGR8 = 0x42475238U,  // "BGR8" — little-endian packed
+    RGB8 = 0x52474238U,  // "RGB8" — little-endian packed
 };
 
 // ---- per-frame metadata ----

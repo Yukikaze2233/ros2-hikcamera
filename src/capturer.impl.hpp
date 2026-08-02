@@ -359,7 +359,9 @@ private:
         convert_context.nSrcDataLen = frame_info.nFrameLen;
 
         convert_context.enSrcPixelType = frame_info.enPixelType;
-        convert_context.enDstPixelType = PixelType_Gvsp_BGR8_Packed;
+        // 模型按 RGB 训练（README: "RGB8 bytes"）；SHM 统一输出 RGB8。
+        // 曾为 BGR8（serial-broadcast 旧行为），对齐 2.0 分支 66abb4d 的 RGB 修复。
+        convert_context.enDstPixelType = PixelType_Gvsp_RGB8_Packed;
 
         convert_context.nDstBufferSize = buffer_size;
 

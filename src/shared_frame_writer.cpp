@@ -83,7 +83,7 @@ auto SharedFrameWriter::write(FrameMetadata meta,
 
     std::memcpy(slot.pixels, bgr_data.data(), bgr_data.size());
     meta.committed_sequence = seq;
-    meta.pixel_format       = PixelFormat::BGR8;
+    meta.pixel_format       = PixelFormat::RGB8;
     meta.stride_bytes       = meta.stride_bytes > 0 ? meta.stride_bytes : meta.width * 3U;
     meta.committed_bytes    = static_cast<uint32_t>(bgr_data.size());
     slot.metadata = meta;
@@ -139,7 +139,7 @@ auto SharedFrameWriter::write_from_camera(Camera& camera)
     meta.height                 = static_cast<uint32_t>(img.mat.rows);
     meta.stride_bytes           = static_cast<uint32_t>(img.mat.step[0]);
     meta.committed_bytes        = static_cast<uint32_t>(img_bytes);
-    meta.pixel_format           = PixelFormat::BGR8;
+    meta.pixel_format           = PixelFormat::RGB8;
     slot.metadata = meta;
 
     rc = pthread_mutex_lock(&ring->mutex);

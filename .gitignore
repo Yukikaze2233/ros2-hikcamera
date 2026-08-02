@@ -1,3 +1,6 @@
 /build/
 /install/
 /log/
+src/sdk/lib/$(ALLUSERSPROFILE)/
+src/sdk/lib/MvSDKLog/
+src/sdk/lib/MvSdkLog/
