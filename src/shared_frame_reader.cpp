@@ -26,9 +26,9 @@ static auto validate_slot(const FrameMetadata& meta, uint64_t target_seq)
     if (meta.committed_sequence != target_seq)
         return std::unexpected{FrameReadError{
             FrameReadErrorCode::InvalidFrame, "stale"}};
-    if (meta.pixel_format != PixelFormat::BGR8)
+    if (meta.pixel_format != PixelFormat::BGR8 && meta.pixel_format != PixelFormat::RGB8)
         return std::unexpected{FrameReadError{
-            FrameReadErrorCode::InvalidFrame, "Pixel format is not BGR8"}};
+            FrameReadErrorCode::InvalidFrame, "Pixel format is not BGR8/RGB8"}};
     if (meta.width == 0 || meta.height == 0)
         return std::unexpected{FrameReadError{
             FrameReadErrorCode::InvalidFrame, "Dimensions are zero"}};
